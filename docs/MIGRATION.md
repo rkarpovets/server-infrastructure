@@ -8,8 +8,8 @@ playbook reproduces all software and configuration; this runbook covers the
 
 `common`, `security` (UFW + fail2ban + SSH hardening), `docker`, `monitoring`
 (Prometheus + Grafana + node_exporter, dashboards, Telegram + service-down alerts),
-`nginx` reverse proxy, native `xray` / 3x-ui, and the `sandstorm` game server
-(steamcmd + configs + mods).
+`logging` (Loki + Alloy log aggregation), `nginx` reverse proxy, native
+`xray` / 3x-ui, and the `sandstorm` game server (steamcmd + configs + mods).
 
 ## What you must carry over manually
 
@@ -71,11 +71,4 @@ Check the 3x-ui panel for your inbounds, and confirm a Telegram test alert fires
 Run a read-only diff against the live server — it changes nothing:
 ```bash
 ansible-playbook site.yml -e target_hosts=production --check --diff
-```
-
-## Decommissioning Netdata (legacy host only)
-
-Netdata is not part of the build. To retire it from the current server:
-```bash
-ansible-playbook playbooks/decommission-netdata.yml -e target_hosts=production
 ```

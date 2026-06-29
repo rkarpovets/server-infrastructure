@@ -6,10 +6,10 @@ stack** (metrics **and** logs with Telegram alerting), an Nginx reverse proxy
 with TLS, an Xray (3x-ui) VPN panel, and a dedicated **Insurgency: Sandstorm**
 game server — all described as code and fully **idempotent**.
 
-The same roles drive a throwaway lab VM and a live public VPS; the only
-difference is `group_vars`. The repository is the single source of truth for
-*configuration* and is designed to rebuild the server from scratch for disaster
-recovery.
+The same roles target multiple hosts through Ansible inventory groups — a test
+host and production — so changes are validated before they reach the live
+server. The repository is the single source of truth for *configuration* and is
+designed to rebuild the server from scratch for disaster recovery.
 
 > Hostnames, IPs and the live firewall port map are intentionally **not** in the
 > repo. Public placeholders (`YOUR_IP`, `example.duckdns.org`) stand in for
@@ -26,8 +26,8 @@ recovery.
   policies all provisioned from files (no click-ops).
 - **Secrets in Ansible Vault** — the repo shows *which* secrets exist, never their
   values; the vault password lives outside the repo.
-- **Two environments from one codebase** — lab (VirtualBox VM) and production
-  (VPS), differing only through `group_vars`.
+- **Two environments from one codebase** — a test host and production,
+  differing only through `group_vars`.
 - **Disaster-recovery aware** — stateful data (VPN DB, TLS certs) is backed up
   out-of-band and restored through role variables; see [docs/MIGRATION.md](docs/MIGRATION.md).
 
@@ -38,7 +38,7 @@ flowchart LR
   admin([Admin]):::ext -->|HTTPS| nginx
   players([Players]):::ext -->|UDP game / query| sandstorm
 
-  subgraph vps[Ubuntu VPS]
+  subgraph host[Linux server]
     nginx[nginx<br/>reverse proxy + TLS] --> grafana
 
     subgraph obs[Observability stack - Docker]
@@ -82,12 +82,12 @@ ansible/
 ├── ansible.cfg
 ├── site.yml                       # entry point — the whole stack
 ├── inventory/
-│   ├── hosts.yml                  # lab and production groups
+│   ├── hosts.yml                  # inventory host groups
 │   └── group_vars/
 │       ├── all/
 │       │   ├── main.yml           # shared vars + secret aliases
 │       │   └── vault.yml          # ansible-vault encrypted secrets
-│       ├── lab.yml                # lab VM overrides
+│       ├── lab.yml                # non-production host overrides
 │       └── production.yml         # production overrides (ports via vault)
 └── roles/                         # one responsibility per role
 docs/MIGRATION.md                  # disaster-recovery / new-host runbook
@@ -96,15 +96,12 @@ scripts/backup-state.sh            # backs up stateful data the playbook does no
 
 ## Environments
 
-| | Lab | Production |
-|---|---|---|
-| Target | VirtualBox VM (4 GB) | Public VPS |
-| Inventory group | `lab` (default) | `production` (explicit) |
-| Game server | installed but **disabled** (OOMs on 4 GB) | running |
-| Game-log shipping | journal only | journal **+** Insurgency.log |
-
-Everything that differs — SSH port, TLS, hostnames, firewall ports, alerted
-services — is expressed entirely through `group_vars`, never by editing roles.
+The same roles target multiple hosts through Ansible inventory groups — a test
+host (the default) and production — so changes are validated before they reach
+the live server. Everything that differs — ports, TLS, hostnames, firewall
+rules, which services run — is expressed entirely through `group_vars`, never by
+editing roles. The game server and its log shipping, for example, are enabled on
+production only.
 
 ## Secrets & Vault
 
@@ -157,7 +154,7 @@ systemd service going inactive.
 ```bash
 cd ansible
 
-# Lab VM (default target)
+# Test host (default target)
 ansible-playbook site.yml
 
 # Dry run — shows the diff, changes nothing
