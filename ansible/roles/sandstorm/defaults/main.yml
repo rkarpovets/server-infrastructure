@@ -5,7 +5,7 @@ sandstorm_install_dir: /home/steam/sandstorm_server
 sandstorm_steam_app_id: 581330
 sandstorm_install_server: true
 
-sandstorm_config_repo: https://github.com/rkarpovets/InsurgencySandstormLinuxServer.git
+sandstorm_config_repo: https://github.com/rkarpovets/insurgency-sandstorm-server.git
 sandstorm_config_version: main
 
 sandstorm_game_port: 27000
