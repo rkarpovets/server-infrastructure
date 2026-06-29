@@ -1,0 +1,16 @@
+[Unit]
+Description=Sandstorm Dedicated Server
+After=network.target
+
+[Service]
+Type=simple
+User={{ sandstorm_user }}
+WorkingDirectory={{ sandstorm_install_dir }}
+ExecStart={{ sandstorm_install_dir }}/server.sh
+Restart=on-failure
+RestartSec=15s
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

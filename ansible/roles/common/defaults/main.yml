@@ -1,0 +1,12 @@
+common_do_upgrade: true
+common_base_packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - net-tools
+  - dnsutils
+  - unzip
+  - ca-certificates
+  - gnupg

@@ -1,0 +1,32 @@
+---
+# Overrides for the production VPS. The concrete, non-standard port numbers
+# live encrypted in the vault (group_vars/all/vault.yml) so the public repo
+# never reveals the live firewall map. Applied to hosts in the `production` group.
+
+# SSH and firewall
+ssh_port: "{{ vault_ssh_port }}"
+ufw_enable: true
+# Password auth kept as a deliberate fallback (strong account password set
+# out-of-band); the non-standard SSH port + fail2ban cover brute-force risk.
+ssh_password_authentication: "yes"
+# nginx jails also cover the Grafana HTTPS port served by nginx.
+fail2ban_nginx_ports: "http,https,{{ nginx_https_port }}"
+
+# nginx: Grafana is served over HTTPS on a dedicated port (the standard 443 is
+# held by xray). The concrete port comes from the vault.
+nginx_enable_tls: true
+nginx_server_name: example.duckdns.org
+nginx_https_port: "{{ vault_nginx_https_port }}"
+grafana_root_url: "https://{{ nginx_server_name }}:{{ nginx_https_port }}/"
+
+# xray / 3x-ui (native). Panel port and live VPN inbound ports come from the vault.
+xray_panel_port: "{{ vault_xray_panel_port }}"
+xray_inbound_ports: "{{ vault_xray_inbound_ports }}"
+
+# Service-down alerts cover these systemd units on prod.
+monitoring_alert_units:
+  - nginx
+  - docker
+  - x-ui
+  - sandstorm-server
+  - sandstorm-manager

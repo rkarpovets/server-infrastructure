@@ -1,0 +1,16 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart sandstorm-server
+  ansible.builtin.systemd:
+    name: sandstorm-server.service
+    state: restarted
+  when: sandstorm_install_server | bool
+
+- name: Restart sandstorm-manager
+  ansible.builtin.systemd:
+    name: sandstorm-manager.service
+    state: restarted
+  when: sandstorm_install_server | bool

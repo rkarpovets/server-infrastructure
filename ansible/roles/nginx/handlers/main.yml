@@ -1,0 +1,10 @@
+---
+# Спершу валідація (як у sshd) — якщо конфіг битий, Reload не виконається.
+- name: Validate nginx config
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded

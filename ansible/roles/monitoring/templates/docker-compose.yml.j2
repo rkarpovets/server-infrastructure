@@ -1,0 +1,53 @@
+services:
+  node_exporter:
+    image: {{ node_exporter_image }}
+    container_name: node_exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.textfile.directory=/textfile'
+    volumes:
+      - /:/host:ro,rslave
+      - {{ monitoring_textfile_dir }}:/textfile:ro
+
+  prometheus:
+    image: {{ prometheus_image }}
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: {{ grafana_image }}
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}
+{% if grafana_root_url %}
+      - GF_SERVER_ROOT_URL={{ grafana_root_url }}
+{% endif %}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      # default → Prometheus/node_exporter; monitoring_net → Loki (logging role)
+      - default
+      - monitoring_net
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+  monitoring_net:
+    external: true

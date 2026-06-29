@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+out="{{ monitoring_textfile_dir }}/units.prom"
+tmp="${out}.$$"
+{
+  echo "# HELP node_systemd_unit_active 1 if the systemd unit is active, 0 otherwise."
+  echo "# TYPE node_systemd_unit_active gauge"
+{% for u in monitoring_alert_units %}
+  if systemctl is-active --quiet {{ u }}.service; then v=1; else v=0; fi
+  echo "node_systemd_unit_active{name=\"{{ u }}.service\"} ${v}"
+{% endfor %}
+} > "$tmp"
+mv "$tmp" "$out"

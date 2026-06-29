@@ -1,0 +1,71 @@
+---
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Restore Let's Encrypt certificates from backup
+  ansible.builtin.unarchive:
+    src: "{{ nginx_letsencrypt_restore_path }}"
+    dest: /etc
+    creates: "{{ nginx_tls_cert }}"
+  when:
+    - nginx_enable_tls | bool
+    - nginx_letsencrypt_restore_path | length > 0
+
+- name: Remove default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Deploy websocket upgrade map
+  ansible.builtin.copy:
+    dest: /etc/nginx/conf.d/websocket_upgrade.conf
+    content: |
+      map $http_upgrade $connection_upgrade {
+          default upgrade;
+          ''      close;
+      }
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Deploy Grafana reverse-proxy site
+  ansible.builtin.template:
+    src: grafana.conf.j2
+    dest: /etc/nginx/sites-available/grafana.conf
+    mode: "0644"
+  notify:
+    - Validate nginx config
+    - Reload nginx
+
+- name: Enable Grafana site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/grafana.conf
+    dest: /etc/nginx/sites-enabled/grafana.conf
+    state: link
+  notify:
+    - Validate nginx config
+    - Reload nginx
+
+- name: Allow HTTP through ufw
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    comment: "HTTP nginx"
+
+- name: Allow HTTPS through ufw
+  community.general.ufw:
+    rule: allow
+    port: "{{ nginx_https_port }}"
+    proto: tcp
+    comment: "HTTPS nginx"
+  when: nginx_enable_tls | bool
+
+- name: Ensure nginx is enabled and running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

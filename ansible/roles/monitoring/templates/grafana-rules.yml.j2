@@ -1,0 +1,121 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: node_health
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: cpu_core_high
+        title: Busiest CPU core > 90%
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels: { severity: warning }
+        annotations: { summary: "Busiest CPU core above 90% for 10 minutes (single-threaded game server saturating one core — likely gameplay impact)" }
+        isPaused: false
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              datasource: { type: prometheus, uid: prometheus }
+              # max() collapses the per-core series to a single value =
+              # the busiest core, so one clean alert instead of one per core.
+              expr: max(100 - (avg by (cpu) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [90] }
+      - uid: ram_high
+        title: RAM usage > 90%
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels: { severity: warning }
+        annotations: { summary: RAM usage above 90% for 5 minutes }
+        isPaused: false
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              datasource: { type: prometheus, uid: prometheus }
+              expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [90] }
+      - uid: disk_high
+        title: Disk usage > 85%
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels: { severity: warning }
+        annotations: { summary: Root filesystem above 85% }
+        isPaused: false
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              datasource: { type: prometheus, uid: prometheus }
+              expr: 100 - (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"} * 100)
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [85] }
+      - uid: service_down
+        title: Service is down
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: OK
+        labels: { severity: critical }
+        annotations: { summary: "systemd unit not active: {% raw %}{{ $labels.name }}{% endraw %}" }
+        isPaused: false
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              datasource: { type: prometheus, uid: prometheus }
+              expr: 'node_systemd_unit_active{name=~"({{ monitoring_alert_units | join("|") }}).service"}'
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }

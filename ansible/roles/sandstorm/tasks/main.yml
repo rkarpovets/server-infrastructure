@@ -1,0 +1,244 @@
+---
+- name: Install steamcmd dependencies
+  ansible.builtin.apt:
+    name: [lib32gcc-s1, ca-certificates, tar, unzip, python3-venv, acl]
+    state: present
+    update_cache: true
+
+- name: Create steam user
+  ansible.builtin.user:
+    name: "{{ sandstorm_user }}"
+    home: "{{ sandstorm_home }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Create steamcmd directory
+  ansible.builtin.file:
+    path: "{{ sandstorm_home }}/steamcmd"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0755"
+
+- name: Download and unpack steamcmd
+  ansible.builtin.unarchive:
+    src: https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+    dest: "{{ sandstorm_home }}/steamcmd"
+    remote_src: true
+    creates: "{{ sandstorm_home }}/steamcmd/steamcmd.sh"
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+
+- name: Install/update sandstorm dedicated server (heavy, ~5 GB)
+  ansible.builtin.command:
+    cmd: >
+      {{ sandstorm_home }}/steamcmd/steamcmd.sh
+      +force_install_dir {{ sandstorm_install_dir }}
+      +login anonymous
+      +app_update {{ sandstorm_steam_app_id }} validate
+      +quit
+    creates: "{{ sandstorm_install_dir }}/Insurgency/Binaries/Linux/InsurgencyServer-Linux-Shipping"
+  become_user: "{{ sandstorm_user }}"
+  register: steamcmd_result
+  until: steamcmd_result.rc == 0
+  retries: 5
+  delay: 10
+  changed_when: steamcmd_result.rc == 0
+  when: sandstorm_install_server | bool
+
+- name: Clone/update config repo
+  ansible.builtin.git:
+    repo: "{{ sandstorm_config_repo }}"
+    dest: "{{ sandstorm_home }}/iss-config-src"
+    version: "{{ sandstorm_config_version }}"
+    depth: 1
+    single_branch: true
+  become_user: "{{ sandstorm_user }}"
+  environment:
+    GIT_TERMINAL_PROMPT: "0"
+
+- name: Ensure config directories exist
+  ansible.builtin.file:
+    path: "{{ sandstorm_install_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0775"
+  loop:
+    - Insurgency/Config/Server
+    - Insurgency/Saved/Config/LinuxServer
+    - Insurgency/Saved/Logs
+
+- name: Deploy game config files from repo
+  ansible.builtin.copy:
+    src: "{{ sandstorm_home }}/iss-config-src/{{ item.src }}"
+    dest: "{{ sandstorm_install_dir }}/{{ item.dest }}"
+    remote_src: true
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: "Insurgency/Config/Server/Admins.txt", dest: "Insurgency/Config/Server/Admins.txt", mode: "0664" }
+    - { src: "Insurgency/Config/Server/MapCycle.txt", dest: "Insurgency/Config/Server/MapCycle.txt", mode: "0664" }
+    - { src: "Insurgency/Config/Server/Motd.txt", dest: "Insurgency/Config/Server/Motd.txt", mode: "0664" }
+    - { src: "Insurgency/Saved/Config/LinuxServer/Game.ini", dest: "Insurgency/Saved/Config/LinuxServer/Game.ini", mode: "0664" }
+    - { src: "Insurgency/Saved/Config/LinuxServer/Engine.ini", dest: "Insurgency/Saved/Config/LinuxServer/Engine.ini", mode: "0664" }
+    - { src: "server.sh", dest: "server.sh", mode: "0755" }
+    - { src: "servermanager.py", dest: "servermanager.py", mode: "0755" }
+
+- name: Deploy Mods.txt (from sandstorm_mods)
+  ansible.builtin.template:
+    src: Mods.txt.j2
+    dest: "{{ sandstorm_install_dir }}/Insurgency/Config/Server/Mods.txt"
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0664"
+  notify: Restart sandstorm-server
+
+- name: Install servermanager Python deps in venv
+  ansible.builtin.pip:
+    requirements: "{{ sandstorm_home }}/iss-config-src/requirements.txt"
+    virtualenv: "{{ sandstorm_home }}/venv"
+    virtualenv_command: python3 -m venv
+  become_user: "{{ sandstorm_user }}"
+
+- name: Deploy .env (secrets from vault)
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ sandstorm_home }}/.env"
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0600"
+  notify: Restart sandstorm-manager
+
+# The manager (running as the unprivileged game user) writes the player-count
+# metric into node_exporter's textfile dir, which the monitoring role owns as
+# root. Grant just this user write access via ACL (the acl package is already a
+# role dependency). node_exporter still reads the dir read-only.
+- name: Allow the game manager to write the node_exporter metric
+  ansible.builtin.command:
+    cmd: "setfacl -m u:{{ sandstorm_user }}:rwx {{ sandstorm_metrics_file | dirname }}"
+  changed_when: false
+  when: sandstorm_metrics_file | length > 0
+
+- name: Deploy systemd unit files
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - sandstorm-server.service
+    - sandstorm-manager.service
+  notify:
+    - Reload systemd
+    - Restart sandstorm-server
+    - Restart sandstorm-manager
+
+- name: Allow sandstorm ports through ufw
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "sandstorm {{ item.proto }}"
+  loop: "{{ sandstorm_firewall_ports }}"
+
+- name: Create mod.io directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0775"
+  loop:
+    - "{{ sandstorm_home }}/mod.io/common/254/mods"
+    - "{{ sandstorm_home }}/mod.io/common/254/metadata"
+
+- name: Deploy mod.io globalsettings.json
+  ansible.builtin.copy:
+    dest: "{{ sandstorm_home }}/mod.io/globalsettings.json"
+    content: '{"RootLocalStoragePath":"{{ sandstorm_home }}/mod.io/common/"}'
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0664"
+
+- name: Deploy mod.io state.json (captured from prod)
+  ansible.builtin.copy:
+    src: modio/state.json
+    dest: "{{ sandstorm_home }}/mod.io/common/254/metadata/state.json"
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0664"
+  notify: Restart sandstorm-server
+
+- name: Create per-mod cache directories
+  ansible.builtin.file:
+    path: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.id }}"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0775"
+  loop: "{{ sandstorm_mods }}"
+  loop_control:
+    label: "{{ item.id }}"
+
+- name: Download and extract mod paks into mod.io cache
+  ansible.builtin.unarchive:
+    src: "https://g-254.modapi.io/v1/games/254/mods/{{ item.id }}/files/{{ item.file_id }}/download"
+    dest: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.id }}"
+    remote_src: true
+    creates: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.id }}/{{ item.pak }}"
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+  loop: "{{ sandstorm_mods }}"
+  loop_control:
+    label: "{{ item.id }}"
+  notify: Restart sandstorm-server
+
+- name: Create mod.io ModServer directory
+  ansible.builtin.file:
+    path: "{{ sandstorm_home }}/mod.io/254/ModServer"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0775"
+
+- name: Deploy mod.io user.json
+  ansible.builtin.template:
+    src: user.json.j2
+    dest: "{{ sandstorm_home }}/mod.io/254/ModServer/user.json"
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0600"
+  notify: Restart sandstorm-server
+
+- name: Create mod symlink directories
+  ansible.builtin.file:
+    path: "{{ sandstorm_install_dir }}/Insurgency/Mods/modio/{{ item.id }}/{{ item.file_id }}"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0775"
+  loop: "{{ sandstorm_mods }}"
+  loop_control:
+    label: "{{ item.id }}"
+
+- name: Symlink mod paks into game Mods directory
+  ansible.builtin.file:
+    src: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.id }}/{{ item.pak }}"
+    dest: "{{ sandstorm_install_dir }}/Insurgency/Mods/modio/{{ item.id }}/{{ item.file_id }}/{{ item.pak }}"
+    state: link
+    force: true
+  loop: "{{ sandstorm_mods }}"
+  loop_control:
+    label: "{{ item.id }}"
+  notify: Restart sandstorm-server
+
+- name: Configure Sandstorm services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: "{{ sandstorm_install_server | bool }}"
+    state: "{{ 'started' if sandstorm_install_server | bool else 'stopped' }}"
+    daemon_reload: true
+  loop:
+    - sandstorm-server.service
+    - sandstorm-manager.service

@@ -1,0 +1,12 @@
+---
+- name: Restart logging stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ logging_base_dir }}"
+    state: restarted
+
+# docker CLI, not the Python-SDK docker_container module (same
+# "Not supported URL scheme http+docker" breakage). Reloads provisioning so
+# Grafana picks up the new Loki datasource.
+- name: Restart grafana
+  ansible.builtin.command: docker restart grafana
+  changed_when: true

@@ -1,0 +1,10 @@
+---
+nginx_server_name: "_"
+nginx_enable_tls: false
+nginx_https_port: 443
+nginx_grafana_upstream: "127.0.0.1:3000"
+nginx_tls_cert: "/etc/letsencrypt/live/{{ nginx_server_name }}/fullchain.pem"
+nginx_tls_key: "/etc/letsencrypt/live/{{ nginx_server_name }}/privkey.pem"
+# Path on the control node to a letsencrypt.tgz backup to restore on a fresh host.
+# Empty = assume certs already present (or obtained separately, e.g. certbot).
+nginx_letsencrypt_restore_path: ""

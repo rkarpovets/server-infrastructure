@@ -1,0 +1,11 @@
+---
+xray_version: "3.4.1"
+xray_arch: amd64
+xray_install_dir: /usr/local/x-ui
+xray_data_dir: /etc/x-ui
+xray_panel_port: 2053
+xray_inbound_ports: []
+# Path on the control node to an x-ui.db backup to restore on a fresh host.
+# Empty = fresh panel. Restore is one-time (skipped if a db already exists).
+# Never commit a real x-ui.db — it holds VPN private keys and panel credentials.
+xray_db_restore_path: ""

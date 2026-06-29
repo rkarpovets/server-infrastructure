@@ -1,0 +1,11 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: telegram
+    receivers:
+      - uid: telegram_main
+        type: telegram
+        settings:
+          bottoken: "{{ telegram_bot_token }}"
+          chatid: "{{ telegram_chat_id }}"
+        disableResolveMessage: false

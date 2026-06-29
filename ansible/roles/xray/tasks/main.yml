@@ -1,0 +1,95 @@
+---
+- name: Check installed 3x-ui version
+  ansible.builtin.command: "{{ xray_install_dir }}/x-ui -v"
+  register: xui_current
+  changed_when: false
+  failed_when: false
+
+- name: Install 3x-ui {{ xray_version }}
+  when: xray_version not in (xui_current.stdout | default(''))
+  notify: Restart x-ui
+  block:
+    - name: Download 3x-ui release
+      ansible.builtin.get_url:
+        url: "https://github.com/MHSanaei/3x-ui/releases/download/v{{ xray_version }}/x-ui-linux-{{ xray_arch }}.tar.gz"
+        dest: "/tmp/x-ui-{{ xray_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Stop x-ui before install
+      ansible.builtin.systemd:
+        name: x-ui
+        state: stopped
+      failed_when: false
+
+    - name: Extract 3x-ui into /usr/local
+      ansible.builtin.unarchive:
+        src: "/tmp/x-ui-{{ xray_version }}.tar.gz"
+        dest: /usr/local/
+        remote_src: true
+        owner: root
+        group: root
+
+    - name: Install x-ui management script
+      ansible.builtin.copy:
+        src: "{{ xray_install_dir }}/x-ui.sh"
+        dest: /usr/bin/x-ui
+        remote_src: true
+        mode: "0755"
+
+    - name: Make x-ui and xray binaries executable
+      ansible.builtin.file:
+        path: "{{ item }}"
+        mode: "0755"
+      loop:
+        - "{{ xray_install_dir }}/x-ui"
+        - "{{ xray_install_dir }}/bin/xray-linux-{{ xray_arch }}"
+
+- name: Ensure data directory exists
+  ansible.builtin.file:
+    path: "{{ xray_data_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Check for existing x-ui.db
+  ansible.builtin.stat:
+    path: "{{ xray_data_dir }}/x-ui.db"
+  register: xui_db
+
+- name: Restore x-ui.db from backup (one-time migration)
+  ansible.builtin.copy:
+    src: "{{ xray_db_restore_path }}"
+    dest: "{{ xray_data_dir }}/x-ui.db"
+    mode: "0644"
+  when:
+    - xray_db_restore_path | length > 0
+    - not xui_db.stat.exists
+  notify: Restart x-ui
+
+- name: Deploy x-ui systemd unit
+  ansible.builtin.template:
+    src: x-ui.service.j2
+    dest: /etc/systemd/system/x-ui.service
+    mode: "0644"
+  notify: Restart x-ui
+
+- name: Allow xray panel port through ufw
+  community.general.ufw:
+    rule: allow
+    port: "{{ xray_panel_port }}"
+    proto: tcp
+    comment: "3x-ui panel"
+
+- name: Allow xray inbound ports through ufw
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "xray inbound"
+  loop: "{{ xray_inbound_ports }}"
+
+- name: Enable and start x-ui
+  ansible.builtin.systemd:
+    name: x-ui
+    enabled: true
+    state: started
+    daemon_reload: true

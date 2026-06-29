@@ -1,0 +1,37 @@
+---
+sandstorm_user: steam
+sandstorm_home: /home/steam
+sandstorm_install_dir: /home/steam/sandstorm_server
+sandstorm_steam_app_id: 581330
+sandstorm_install_server: true
+
+sandstorm_config_repo: https://github.com/rkarpovets/InsurgencySandstormLinuxServer.git
+sandstorm_config_version: main
+
+sandstorm_game_port: 27000
+sandstorm_query_port: 27010
+# RCON binds 0.0.0.0 but is NEVER opened in the firewall — admin access is
+# local only (via SSH tunnel). The manager connects over loopback.
+sandstorm_rcon_ip: 127.0.0.1
+sandstorm_rcon_port: 27020
+
+# Game alerts. A DEDICATED game bot (its own token) posting to the SAME shared
+# chat as the monitoring bot. Secrets come from vault; default to empty so the
+# manager simply runs without Telegram where they aren't set (e.g. the lab).
+sandstorm_server_name: "Insurgency: Sandstorm"
+sandstorm_max_players: 16
+sandstorm_telegram_token: "{{ vault_telegram_sandstorm_bot_token | default('') }}"
+sandstorm_telegram_chat_id: "{{ vault_telegram_chat_id | default('') }}"
+# node_exporter textfile-collector target (read by Prometheus → Grafana)
+sandstorm_metrics_file: /var/lib/node_exporter/iss_players.prom
+
+sandstorm_mods:
+  - { id: 150867, file_id: 7474149, pak: ISMCmpakchunk0-WindowsClient.pak }
+  - { id: 1516914, file_id: 7474160, pak: ISMCrpakchunk0-WindowsClient.pak }
+sandstorm_modio_token: "{{ vault_sandstorm_modio_token }}"
+
+sandstorm_firewall_ports:
+  - { port: "{{ sandstorm_game_port }}", proto: udp }    # game
+  - { port: "{{ sandstorm_query_port }}", proto: udp }   # query
+  # RCON ({{ sandstorm_rcon_port }}/tcp) is intentionally NOT exposed — reach it
+  # over an SSH tunnel: ssh -L {{ sandstorm_rcon_port }}:127.0.0.1:{{ sandstorm_rcon_port }} ...

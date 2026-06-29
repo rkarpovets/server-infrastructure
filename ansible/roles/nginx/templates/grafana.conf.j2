@@ -1,0 +1,29 @@
+server {
+{% if nginx_enable_tls %}
+    listen {{ nginx_https_port }} ssl;
+    listen [::]:{{ nginx_https_port }} ssl;
+    server_name {{ nginx_server_name }};
+
+    ssl_certificate     {{ nginx_tls_cert }};
+    ssl_certificate_key {{ nginx_tls_key }};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+{% else %}
+    listen 80;
+    server_name {{ nginx_server_name }};
+{% endif %}
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-Content-Type-Options nosniff always;
+
+    location / {
+        proxy_pass http://{{ nginx_grafana_upstream }};
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}

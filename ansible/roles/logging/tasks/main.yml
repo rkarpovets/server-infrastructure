@@ -1,0 +1,51 @@
+---
+# docker CLI, not the Python-SDK module (broken on modern requests/urllib3:
+# "Not supported URL scheme http+docker"). Matches docker_compose_v2's approach.
+- name: Ensure shared docker network exists (joins monitoring + logging)
+  ansible.builtin.command: docker network create {{ logging_network }}
+  register: logging_net_create
+  changed_when: logging_net_create.rc == 0
+  failed_when:
+    - logging_net_create.rc != 0
+    - "'already exists' not in logging_net_create.stderr"
+
+- name: Create logging stack directory
+  ansible.builtin.file:
+    path: "{{ logging_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Template Loki config
+  ansible.builtin.template:
+    src: loki-config.yml.j2
+    dest: "{{ logging_base_dir }}/loki-config.yml"
+    mode: "0644"
+  notify: Restart logging stack
+
+- name: Template Alloy config
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: "{{ logging_base_dir }}/config.alloy"
+    mode: "0644"
+  notify: Restart logging stack
+
+- name: Template logging compose file
+  ansible.builtin.template:
+    src: docker-compose.logging.yml.j2
+    dest: "{{ logging_base_dir }}/docker-compose.yml"
+    mode: "0644"
+  notify: Restart logging stack
+
+- name: Provision Loki datasource into Grafana
+  ansible.builtin.template:
+    src: loki-datasource.yml.j2
+    dest: "{{ grafana_datasources_dir }}/loki.yml"
+    mode: "0644"
+  notify: Restart grafana
+
+- name: Bring up the logging stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ logging_base_dir }}"
+    state: present

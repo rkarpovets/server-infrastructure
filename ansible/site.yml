@@ -1,0 +1,15 @@
+---
+- name: Base server configuration
+  hosts: "{{ target_hosts | default('lab') }}"
+  become: true
+  roles:
+    - common
+    - docker
+    - security
+    - role: monitoring
+      tags: [monitoring]
+    - role: logging
+      tags: [logging]
+    - nginx
+    - xray
+    - sandstorm

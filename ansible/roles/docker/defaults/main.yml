@@ -1,0 +1,2 @@
+docker_arch: amd64
+docker_user: "{{ ansible_user }}"

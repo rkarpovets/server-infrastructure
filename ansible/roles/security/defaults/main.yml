@@ -1,0 +1,14 @@
+---
+ssh_port: 22
+# Secure-by-default: key-only. The production VPS keeps password auth as a
+# deliberate fallback and overrides this to "yes" in its group_vars.
+ssh_password_authentication: "no"
+ufw_enable: false
+ufw_allow_ports:
+  - { port: "{{ ssh_port }}", proto: tcp, comment: "SSH" }
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5
+fail2ban_ignoreip: "127.0.0.1/8 ::1"
+# Ports a ban applies to for the nginx jails (logs are scanned regardless).
+fail2ban_nginx_ports: "http,https"

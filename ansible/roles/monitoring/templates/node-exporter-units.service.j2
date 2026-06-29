@@ -1,0 +1,6 @@
+[Unit]
+Description=Export systemd unit states to node_exporter textfile collector
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/node_exporter_units.sh

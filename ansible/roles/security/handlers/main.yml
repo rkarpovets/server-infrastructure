@@ -1,0 +1,16 @@
+---
+# Handlers run in definition order: validate before reload so a bad config
+# never reaches a running sshd.
+- name: Validate sshd config
+  ansible.builtin.command: sshd -t
+  changed_when: false
+
+- name: Reload ssh
+  ansible.builtin.service:
+    name: ssh
+    state: reloaded
+
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted

@@ -1,0 +1,24 @@
+[DEFAULT]
+bantime  = {{ fail2ban_bantime }}
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+backend  = systemd
+ignoreip = {{ fail2ban_ignoreip }}
+
+[sshd]
+enabled = true
+port    = {{ ssh_port }}
+
+[nginx-http-auth]
+enabled  = true
+backend  = auto
+port     = {{ fail2ban_nginx_ports }}
+logpath  = /var/log/nginx/error.log
+maxretry = 5
+
+[nginx-botsearch]
+enabled  = true
+backend  = auto
+port     = {{ fail2ban_nginx_ports }}
+logpath  = /var/log/nginx/access.log
+maxretry = 3
