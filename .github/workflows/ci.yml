@@ -41,12 +41,8 @@ jobs:
       - name: yamllint
         run: yamllint .
 
-      # 2. Ansible best-practices and an internal syntax check across all roles.
+      # 2. Ansible best-practices AND a full syntax check across all roles.
+      #    ansible-lint runs ansible-playbook --syntax-check internally and
+      #    treats the encrypted vault as opaque, so no vault password is needed.
       - name: ansible-lint
         run: ansible-lint
-
-      # 3. Explicit playbook parse. No connection, no secrets — just "does it
-      #    compile?". Runs from ansible/ so ansible.cfg (inventory, roles) loads.
-      - name: Ansible syntax check
-        working-directory: ansible
-        run: ansible-playbook --syntax-check site.yml
