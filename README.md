@@ -1,5 +1,7 @@
 # Server Infrastructure as Code
 
+[![CI](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml)
+
 Ansible automation that takes a clean Ubuntu host and provisions a complete,
 production-grade Linux server: base hardening, Docker, a full **observability
 stack** (metrics **and** logs with Telegram alerting), an Nginx reverse proxy
