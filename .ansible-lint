@@ -1,0 +1,7 @@
+---
+# ansible-lint configuration.
+
+# The vault file is encrypted — there is nothing to lint inside it, and trying
+# to parse it without the password only produces noise. Skip it.
+exclude_paths:
+  - ansible/inventory/group_vars/all/vault.yml

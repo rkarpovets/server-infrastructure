@@ -1,0 +1,22 @@
+---
+# yamllint configuration, tuned for Ansible conventions.
+extends: default
+
+rules:
+  # Ansible commonly writes inline dicts with inner spaces: { key: value }
+  braces:
+    max-spaces-inside: 1
+  # Long lines are normal in Ansible (Jinja expressions, comments).
+  # Flag them as a warning so they inform without failing the build.
+  line-length:
+    max: 160
+    level: warning
+  # Not every Ansible vars file carries a leading '---'.
+  document-start: disable
+  # Allow Ansible's yes/no booleans alongside true/false.
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false
+
+ignore: |
+  .git/

@@ -1,0 +1,46 @@
+---
+name: CI
+
+# When does this pipeline run?
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel an in-progress run if you push again to the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.11"
+
+      # Versions are pinned so a new linter release can never turn a green
+      # build red without a deliberate bump on our side.
+      - name: Install linters
+        run: pip install ansible-core==2.16.3 ansible-lint==6.17.2 yamllint==1.33.0
+
+      # 1. Pure-YAML hygiene (indentation, line endings, syntax).
+      - name: yamllint
+        run: yamllint .
+
+      # 2. Ansible best-practices and an internal syntax check across all roles.
+      - name: ansible-lint
+        run: ansible-lint
+
+      # 3. Explicit playbook parse. No connection, no secrets — just "does it
+      #    compile?". Runs from ansible/ so ansible.cfg (inventory, roles) loads.
+      - name: Ansible syntax check
+        working-directory: ansible
+        run: ansible-playbook --syntax-check site.yml
