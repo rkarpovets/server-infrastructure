@@ -1,0 +1,68 @@
+---
+name: Deploy - apply to production
+
+# Manual, human-gated Continuous Deployment. This ACTUALLY changes production
+# (runs the playbook WITHOUT --check). It only ever runs when you click
+# "Run workflow" and type the confirmation word - never automatically on push.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm applying to PRODUCTION'
+        required: true
+        default: ""
+
+# Never run two applies at once, and never cancel one mid-flight.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ansible-playbook apply against production
+    runs-on: ubuntu-latest
+    # Optional: add required reviewers / wait timer under
+    # Settings -> Environments -> production to gate this further.
+    environment: production
+    steps:
+      - name: Require explicit confirmation
+        env:
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "deploy" ]; then
+            echo "::error::Type 'deploy' in the confirm box to apply. Aborting."
+            exit 1
+          fi
+
+      - name: Check out the repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible and collections
+        run: |
+          pip install ansible-core==2.16.3
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Provide credentials
+        env:
+          VAULT_PW: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          install -m 600 /dev/null "$HOME/.ansible_vault_pass"
+          printf '%s' "$VAULT_PW" > "$HOME/.ansible_vault_pass"
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+
+      - name: Apply the playbook to production
+        working-directory: ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+        run: |
+          # No --check: this applies for real.
+          # No --diff: keep rendered secrets out of the CI log.
+          ansible-playbook site.yml
