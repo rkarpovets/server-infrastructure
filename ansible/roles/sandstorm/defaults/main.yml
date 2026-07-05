@@ -10,7 +10,7 @@ sandstorm_config_version: main
 
 sandstorm_game_port: 27000
 sandstorm_query_port: 27010
-# RCON binds 0.0.0.0 but is NEVER opened in the firewall — admin access is
+# RCON binds 0.0.0.0 but is NEVER opened in the firewall - admin access is
 # local only (via SSH tunnel). The manager connects over loopback.
 sandstorm_rcon_ip: 127.0.0.1
 sandstorm_rcon_port: 27020
@@ -18,11 +18,16 @@ sandstorm_rcon_port: 27020
 # Game alerts. A DEDICATED game bot (its own token) posting to the SAME shared
 # chat as the monitoring bot. Secrets come from vault; default to empty so the
 # manager simply runs without Telegram where they aren't set (e.g. the lab).
-sandstorm_server_name: "Insurgency: Sandstorm"
+sandstorm_server_name: "CrazyStorm / ISMC / Balanced AI"
 sandstorm_max_players: 16
 sandstorm_telegram_token: "{{ vault_telegram_sandstorm_bot_token | default('') }}"
 sandstorm_telegram_chat_id: "{{ vault_telegram_chat_id | default('') }}"
-# node_exporter textfile-collector target (read by Prometheus → Grafana)
+# Steam Web API key for resolving SteamID -> player name: the manager reads
+# player IDs from RCON listplayers and looks names up via the API. From vault;
+# empty by default so names fall back to "SteamID:<id>" where no key is set
+# (e.g. the lab).
+sandstorm_steam_api_key: "{{ vault_steam_api_key | default('') }}"
+# node_exporter textfile-collector target (read by Prometheus -> Grafana)
 sandstorm_metrics_file: /var/lib/node_exporter/iss_players.prom
 
 sandstorm_mods:
@@ -33,5 +38,4 @@ sandstorm_modio_token: "{{ vault_sandstorm_modio_token }}"
 sandstorm_firewall_ports:
   - { port: "{{ sandstorm_game_port }}", proto: udp }    # game
   - { port: "{{ sandstorm_query_port }}", proto: udp }   # query
-  # RCON ({{ sandstorm_rcon_port }}/tcp) is intentionally NOT exposed — reach it
-  # over an SSH tunnel: ssh -L {{ sandstorm_rcon_port }}:127.0.0.1:{{ sandstorm_rcon_port }} ...
+  # RCON ({{ sandstorm_rcon_port }}/tcp) is intentionally NOT exposed
