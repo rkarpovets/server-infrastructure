@@ -1,0 +1,83 @@
+---
+name: CD - production drift check
+
+# Read-only Continuous Delivery. On every push to main, once a day, and on
+# demand, run the playbook against production in --check mode and surface any
+# configuration drift. This NEVER changes the server: a human decides when to
+# actually apply. A daily "no drift" run is the confidence that the code still
+# reproduces production - which is what makes migrating to new hardware safe.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC daily
+  workflow_dispatch: {}
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift-check:
+    name: Ansible --check against production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible and collections
+        run: |
+          pip install ansible-core==2.16.3
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      # Secrets are set in Settings -> Secrets and variables -> Actions:
+      #   ANSIBLE_VAULT_PASSWORD - decrypts the vault (prod IP, domain, ports)
+      #   SSH_PRIVATE_KEY        - a key authorised on the production host
+      # Passed via env (not inlined into the script) so a secret can never be
+      # interpreted as shell.
+      - name: Provide credentials
+        env:
+          VAULT_PW: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          install -m 600 /dev/null "$HOME/.ansible_vault_pass"
+          printf '%s' "$VAULT_PW" > "$HOME/.ansible_vault_pass"
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+
+      - name: Run read-only check against production
+        working-directory: ansible
+        env:
+          # The runner has no known_hosts entry for the (vaulted) prod IP.
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+        run: |
+          set -o pipefail
+          ansible-playbook site.yml -e target_hosts=production \
+            --check --diff 2>&1 | tee "$RUNNER_TEMP/check.log"
+
+      - name: Report drift in the job summary
+        if: always()
+        run: |
+          recap="$(grep -E '^vps ' "$RUNNER_TEMP/check.log" | tail -1 || true)"
+          changed="$(printf '%s' "$recap" | grep -oE 'changed=[0-9]+' | cut -d= -f2 || true)"
+          {
+            echo "## Production drift check"
+            echo ""
+            if [ "$changed" = "0" ]; then
+              echo "No drift - production matches the code."
+            elif [ -n "$changed" ]; then
+              echo "**$changed task(s) would change.** Review the diff in the log, then apply when ready."
+            else
+              echo "Could not reach production or parse the recap - see the log."
+            fi
+            echo ""
+            echo '```'
+            echo "$recap"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
