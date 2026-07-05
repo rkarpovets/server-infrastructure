@@ -11,13 +11,17 @@ playbook reproduces all software and configuration; this runbook covers the
 `logging` (Loki + Alloy log aggregation), `nginx` reverse proxy, native
 `xray` / 3x-ui, and the `sandstorm` game server (steamcmd + configs + mods).
 
+The playbook runs from a **control node** (your workstation / WSL, or the CI
+runner) and pushes over SSH. The target server never holds the playbook or the
+vault password - it is a dumb target.
+
 ## What you must carry over manually
 
 | Item | Why | How |
 |------|-----|-----|
 | `x-ui.db` | VPN inbounds, users, Reality keys, panel login | `backup-state.sh` -> `xray_db_restore_path` |
 | Let's Encrypt certs | nginx TLS won't start without them | `backup-state.sh` -> `nginx_letsencrypt_restore_path` (or re-run certbot) |
-| DNS record | `example.duckdns.org` must point to the new IP | manual, in the DuckDNS panel |
+| DNS record | the DuckDNS domain (`vault_nginx_server_name`) must point at the new IP | manual, in the DuckDNS panel |
 | Vault password | needed to decrypt secrets | keep `~/.ansible_vault_pass` backed up off-repo |
 
 Not carried (acceptable to lose): Prometheus metric history, Grafana volume
@@ -26,49 +30,76 @@ Not carried (acceptable to lose): Prometheus metric history, Grafana volume
 ## Procedure
 
 ### 1. On the OLD server - back up state
+
+`backup-state.sh` lives in this repo on the control node, not on the server
+(Ansible is push-based; the target never has the playbook). So copy the script
+over, run it, then pull the result back:
 ```bash
-sudo scripts/backup-state.sh /tmp/infra-state
-# copy it to the Ansible control node:
-scp -r OLD_HOST:/tmp/infra-state ~/infra-state
+# from the control node - adjust port / user / IP to your inventory:
+scp -P <ssh_port> scripts/backup-state.sh <user>@<OLD_IP>:/tmp/backup-state.sh
+ssh -p <ssh_port> <user>@<OLD_IP> 'sudo bash /tmp/backup-state.sh /tmp/infra-state'
+scp -r -P <ssh_port> <user>@<OLD_IP>:/tmp/infra-state ~/infra-state
 ```
+Also copy `~/.ansible_vault_pass` somewhere safe and off-repo (a password manager).
 
 ### 2. On the NEW server - bootstrap access
-Fresh Ubuntu, then create the management user the playbook expects:
+
+Fresh Ubuntu. The inventory connects as `ansible_user` (currently `ubuntu`),
+key-based. Ensure that user has passwordless sudo and your public key:
 ```bash
-sudo adduser --gecos "" ansible && sudo usermod -aG sudo ansible
-echo 'ansible ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ansible
+# on the new host (as any sudo-capable user):
+echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ubuntu
 # from the control node:
-ssh-copy-id -i ~/.ssh/id_ed25519.pub ansible@NEW_IP
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@<NEW_IP>
 ```
+The `security` role later moves SSH to the non-standard vaulted port and hardens
+it - so the very first run connects on the default port 22 (see step 4).
 
-### 3. Point inventory and DNS at the new host
-- `inventory/hosts.yml` -> set the `production` host `ansible_host` to `NEW_IP`.
-- Update `example.duckdns.org` to `NEW_IP` in the DuckDNS panel (manual).
+### 3. Point the inventory and DNS at the new host
 
-### 4. Run the playbook against production
+The production IP and domain live in the vault, not in plaintext files, so a
+migration is a vault edit - `hosts.yml` needs no change (it already reads
+`ansible_host: "{{ vault_production_ip }}"`):
+```bash
+ansible-vault edit inventory/group_vars/all/vault.yml
+#   set vault_production_ip to <NEW_IP>
+```
+Then repoint the DuckDNS domain (the one in `vault_nginx_server_name`) at
+`<NEW_IP>` in the DuckDNS panel.
+
+### 4. Run the playbook against the new host
+
+`production` is the default target. Pass the backup paths so the one-time state
+restore happens:
 ```bash
 cd ansible
-ansible-playbook site.yml -e target_hosts=production \
+ansible-playbook site.yml \
   -e xray_db_restore_path=~/infra-state/x-ui.db \
   -e nginx_letsencrypt_restore_path=~/infra-state/letsencrypt.tgz
 ```
 The xray role restores `x-ui.db` only if no DB exists yet (one-time), and nginx
 restores the certs only if they are missing. Re-runs are safe and idempotent.
 
-> No cert backup? After DNS points at the new IP and port 80 is reachable, obtain
-> fresh certs with certbot instead, then re-run the playbook.
+> **First run on a fresh host:** SSH is still on port 22, but the inventory
+> expects the vaulted port. Override it once: add `-e ansible_port=22`. After the
+> `security` role moves SSH to the vaulted port, drop the override.
+
+> **No cert backup?** After DNS points at the new IP and port 80 is reachable,
+> obtain fresh certs with certbot instead, then re-run the playbook.
 
 ### 5. Verify
 ```bash
-ssh NEW: 'systemctl is-active x-ui nginx sandstorm-server'
-ssh NEW: 'sudo docker ps'                       # grafana, prometheus, node_exporter Up
-curl -I https://example.duckdns.org:<grafana-https-port>/   # Grafana via nginx
+ssh -p <ssh_port> ubuntu@<NEW_IP> 'systemctl is-active x-ui nginx sandstorm-server sandstorm-manager'
+ssh -p <ssh_port> ubuntu@<NEW_IP> 'sudo docker ps'   # grafana, prometheus, node_exporter, loki, alloy Up
 ```
-Check the 3x-ui panel for your inbounds, and confirm a Telegram test alert fires.
+Open your Grafana domain over HTTPS, check the 3x-ui panel for your inbounds, and
+confirm a Telegram test alert fires.
 
 ## Verifying the playbook matches the current prod (before trusting it)
 
-Run a read-only diff against the live server - it changes nothing:
+Run a read-only check against the live server - it changes nothing. This is also
+what the scheduled CD workflow does every day, so a green run is your standing
+confidence that a migration will reproduce the server faithfully:
 ```bash
-ansible-playbook site.yml -e target_hosts=production --check --diff
+ansible-playbook site.yml --check --diff
 ```
