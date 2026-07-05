@@ -1,0 +1,18 @@
+# Normalize all text files to LF in the repo. This stack deploys to Linux;
+# a CRLF that sneaks in (e.g. a Windows clone with core.autocrlf=true) would
+# show every line as changed in ansible diffs and can break shell/.env files.
+* text=auto eol=lf
+
+# Explicit LF for the files we ship as-is or execute on the server.
+*.sh   text eol=lf
+*.j2   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.cfg  text eol=lf
+
+# Binary: never touch line endings.
+*.db  binary
+*.pak binary
+*.png binary
+*.jpg binary
+*.ico binary
