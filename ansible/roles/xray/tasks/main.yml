@@ -10,6 +10,7 @@
   check_mode: false
 
 - name: Install 3x-ui {{ xray_version }}
+  tags: install
   when: xray_version not in (xui_current.stdout | default(''))
   notify: Restart x-ui
   block:
