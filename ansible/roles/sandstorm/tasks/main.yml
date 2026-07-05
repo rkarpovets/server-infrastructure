@@ -13,26 +13,29 @@
     create_home: true
 
 - name: Create steamcmd directory
+  tags: install
   ansible.builtin.file:
-    path: "{{ sandstorm_home }}/steamcmd"
+    path: "{{ sandstorm_steamcmd_dir }}"
     state: directory
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0755"
 
 - name: Download and unpack steamcmd
+  tags: install
   ansible.builtin.unarchive:
     src: https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
-    dest: "{{ sandstorm_home }}/steamcmd"
+    dest: "{{ sandstorm_steamcmd_dir }}"
     remote_src: true
-    creates: "{{ sandstorm_home }}/steamcmd/steamcmd.sh"
+    creates: "{{ sandstorm_steamcmd_dir }}/steamcmd.sh"
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
 
 - name: Install/update sandstorm dedicated server (heavy, ~5 GB)
+  tags: install
   ansible.builtin.command:
     cmd: >
-      {{ sandstorm_home }}/steamcmd/steamcmd.sh
+      {{ sandstorm_steamcmd_dir }}/steamcmd.sh
       +force_install_dir {{ sandstorm_install_dir }}
       +login anonymous
       +app_update {{ sandstorm_steam_app_id }} validate
@@ -44,6 +47,16 @@
   retries: 5
   delay: 10
   changed_when: steamcmd_result.rc == 0
+  when: sandstorm_install_server | bool
+
+- name: Symlink ~/sandstorm_server to the game install dir (convenience)
+  ansible.builtin.file:
+    src: "{{ sandstorm_install_dir }}"
+    dest: "{{ sandstorm_home }}/sandstorm_server"
+    state: link
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    force: true
   when: sandstorm_install_server | bool
 
 - name: Clone/update config repo
@@ -96,6 +109,7 @@
   notify: Restart sandstorm-server
 
 - name: Install servermanager Python deps in venv
+  tags: install
   ansible.builtin.pip:
     requirements: "{{ sandstorm_home }}/iss-config-src/requirements.txt"
     virtualenv: "{{ sandstorm_home }}/venv"
@@ -182,6 +196,7 @@
     label: "{{ item.id }}"
 
 - name: Download and extract mod paks into mod.io cache
+  tags: install
   ansible.builtin.unarchive:
     src: "https://g-254.modapi.io/v1/games/254/mods/{{ item.id }}/files/{{ item.file_id }}/download"
     dest: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.id }}"

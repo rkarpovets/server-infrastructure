@@ -1,7 +1,12 @@
 ---
 sandstorm_user: steam
 sandstorm_home: /home/steam
-sandstorm_install_dir: /home/steam/sandstorm_server
+# steamcmd and the game live under the standard Steam data root, matching the
+# real server layout (steamcmd installs itself and its steamapps here). The
+# convenience symlink ~/sandstorm_server also points at sandstorm_install_dir.
+sandstorm_steam_root: "{{ sandstorm_home }}/.local/share/Steam"
+sandstorm_steamcmd_dir: "{{ sandstorm_steam_root }}/steamcmd"
+sandstorm_install_dir: "{{ sandstorm_steam_root }}/steamapps/common/sandstorm_server"
 sandstorm_steam_app_id: 581330
 sandstorm_install_server: true
 
