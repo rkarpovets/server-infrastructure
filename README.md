@@ -8,14 +8,14 @@ stack** (metrics **and** logs with Telegram alerting), an Nginx reverse proxy
 with TLS, an Xray (3x-ui) VPN panel, and a dedicated **Insurgency: Sandstorm**
 game server - all described as code and fully **idempotent**.
 
-The same roles target multiple hosts through Ansible inventory groups - a test
-host and production - so changes are validated before they reach the live
-server. The repository is the single source of truth for *configuration* and is
-designed to rebuild the server from scratch for disaster recovery.
+The repository is the single source of truth for the *configuration* of the
+server: one  run provisions the production host from scratch, which
+makes disaster recovery and migration to new hardware a repeatable, idempotent
+operation.
 
 > Hostnames, IPs and the live firewall port map are intentionally **not** in the
-> repo. Public placeholders (`YOUR_IP`, `example.duckdns.org`) stand in for
-> real values; concrete non-standard ports live encrypted in Ansible Vault.
+> repo. The `YOUR_IP` placeholder stands in for the production IP; the real
+> domain, non-standard ports and other host specifics live encrypted in Vault.
 
 ## Highlights
 
@@ -28,8 +28,8 @@ designed to rebuild the server from scratch for disaster recovery.
   policies all provisioned from files (no click-ops).
 - **Secrets in Ansible Vault** - the repo shows *which* secrets exist, never their
   values; the vault password lives outside the repo.
-- **Two environments from one codebase** - a test host and production,
-  differing only through `group_vars`.
+- **Rebuildable from scratch** - one `site.yml` run reproduces the whole host
+  on new hardware; host specifics live in `group_vars` and vault, not the roles.
 - **Disaster-recovery aware** - stateful data (VPN DB, TLS certs) is backed up
   out-of-band and restored through role variables; see [docs/MIGRATION.md](docs/MIGRATION.md).
 
@@ -89,21 +89,19 @@ ansible/
 │       ├── all/
 │       │   ├── main.yml           # shared vars + secret aliases
 │       │   └── vault.yml          # ansible-vault encrypted secrets
-│       ├── lab.yml                # non-production host overrides
-│       └── production.yml         # production overrides (ports via vault)
+│       └── production.yml         # production overrides (ports/domain via vault)
 └── roles/                         # one responsibility per role
 docs/MIGRATION.md                  # disaster-recovery / new-host runbook
 scripts/backup-state.sh            # backs up stateful data the playbook does not manage
 ```
 
-## Environments
+## Configuration and host specifics
 
-The same roles target multiple hosts through Ansible inventory groups - a test
-host (the default) and production - so changes are validated before they reach
-the live server. Everything that differs - ports, TLS, hostnames, firewall
-rules, which services run - is expressed entirely through `group_vars`, never by
-editing roles. The game server and its log shipping, for example, are enabled on
-production only.
+Everything host-specific - IPs, ports, TLS domain, firewall rules - is expressed
+through `group_vars` and Ansible Vault, never by editing roles. The roles stay
+generic, so pointing the playbook at a new host is only an inventory and vault
+change - which is what makes migrating to new hardware a low-risk, repeatable
+operation.
 
 ## Secrets & Vault
 
@@ -156,14 +154,11 @@ systemd service going inactive.
 ```bash
 cd ansible
 
-# Test host (default target)
+# Provision production (the only host, and the default target)
 ansible-playbook site.yml
 
 # Dry run - shows the diff, changes nothing
 ansible-playbook site.yml --check --diff
-
-# Production (explicit, never the default)
-ansible-playbook site.yml -e target_hosts=production
 
 # Re-apply just one slice (tagged roles)
 ansible-playbook site.yml --tags monitoring,logging

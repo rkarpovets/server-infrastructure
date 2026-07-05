@@ -17,15 +17,14 @@ sandstorm_rcon_port: 27020
 
 # Game alerts. A DEDICATED game bot (its own token) posting to the SAME shared
 # chat as the monitoring bot. Secrets come from vault; default to empty so the
-# manager simply runs without Telegram where they aren't set (e.g. the lab).
+# manager simply runs without Telegram where they are not set.
 sandstorm_server_name: "CrazyStorm / ISMC / Balanced AI"
 sandstorm_max_players: 16
 sandstorm_telegram_token: "{{ vault_telegram_sandstorm_bot_token | default('') }}"
 sandstorm_telegram_chat_id: "{{ vault_telegram_chat_id | default('') }}"
 # Steam Web API key for resolving SteamID -> player name: the manager reads
 # player IDs from RCON listplayers and looks names up via the API. From vault;
-# empty by default so names fall back to "SteamID:<id>" where no key is set
-# (e.g. the lab).
+# empty by default so names fall back to "SteamID:<id>" where no key is set.
 sandstorm_steam_api_key: "{{ vault_steam_api_key | default('') }}"
 # node_exporter textfile-collector target (read by Prometheus -> Grafana)
 sandstorm_metrics_file: /var/lib/node_exporter/iss_players.prom

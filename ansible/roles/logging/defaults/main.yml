@@ -17,8 +17,8 @@ loki_retention_period: 168h          # 7 days
 loki_max_chunk_age: 2h
 
 # Collect the Insurgency: Sandstorm game log. Disable where the game server
-# isn't installed (e.g. the lab VM) so Alloy doesn't try to mount a missing
-# file. Set to false in group_vars/lab.yml, true on production.
+# Whether to tail the Insurgency game log. Set false on any host that does
+# not run the game server, so Alloy does not mount a missing log file.
 logging_collect_iss: true
 
 # Path to the live game log on the host (mounted read-only into Alloy)

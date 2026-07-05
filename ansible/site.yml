@@ -1,6 +1,6 @@
 ---
 - name: Base server configuration
-  hosts: "{{ target_hosts | default('lab') }}"
+  hosts: "{{ target_hosts | default('production') }}"
   become: true
   roles:
     - common
