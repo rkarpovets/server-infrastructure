@@ -60,6 +60,7 @@
   when: sandstorm_install_server | bool
 
 - name: Clone/update config repo
+  check_mode: false
   ansible.builtin.git:
     repo: "{{ sandstorm_config_repo }}"
     dest: "{{ sandstorm_home }}/iss-config-src"
@@ -149,6 +150,7 @@
     - Restart sandstorm-manager
 
 - name: Allow sandstorm ports through ufw
+  no_log: true
   community.general.ufw:
     rule: allow
     port: "{{ item.port }}"
