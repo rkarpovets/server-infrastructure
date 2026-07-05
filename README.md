@@ -92,6 +92,7 @@ ansible/
 │       └── production.yml         # production overrides (ports/domain via vault)
 └── roles/                         # one responsibility per role
 docs/MIGRATION.md                  # disaster-recovery / new-host runbook
+docs/DEPLOY-CHECKLIST.md           # pre-flight checklist for a new-IP deploy
 scripts/backup-state.sh            # backs up stateful data the playbook does not manage
 ```
 
@@ -175,7 +176,8 @@ VPN database, TLS certificates, game saves, metric history - is **not** in the
 repo. `scripts/backup-state.sh` captures the non-reproducible pieces (the 3x-ui
 database and Let's Encrypt certificates) so they can be restored on a fresh host
 through role variables. The full new-host runbook is in
-[docs/MIGRATION.md](docs/MIGRATION.md).
+[docs/MIGRATION.md](docs/MIGRATION.md); for a quick pre-flight before deploying
+to a new IP, use [docs/DEPLOY-CHECKLIST.md](docs/DEPLOY-CHECKLIST.md).
 
 ## Design principles
 
