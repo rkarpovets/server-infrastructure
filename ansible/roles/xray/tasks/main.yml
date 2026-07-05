@@ -78,6 +78,7 @@
   notify: Restart x-ui
 
 - name: Allow xray panel port through ufw
+  no_log: true
   community.general.ufw:
     rule: allow
     port: "{{ xray_panel_port }}"
@@ -85,6 +86,7 @@
     comment: "3x-ui panel"
 
 - name: Allow xray inbound ports through ufw
+  no_log: true
   community.general.ufw:
     rule: allow
     port: "{{ item.port }}"

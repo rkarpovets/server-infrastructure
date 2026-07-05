@@ -42,6 +42,7 @@
     - { direction: outgoing, policy: allow }
 
 - name: Allow configured ports through ufw
+  no_log: true
   community.general.ufw:
     rule: allow
     port: "{{ item.port }}"
