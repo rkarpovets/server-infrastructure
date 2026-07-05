@@ -45,6 +45,10 @@
     src: /etc/nginx/sites-available/grafana.conf
     dest: /etc/nginx/sites-enabled/grafana.conf
     state: link
+  # In --check mode the deploy task above does not actually create
+  # grafana.conf, so the symlink source is absent; skip then (a real
+  # run creates the file first).
+  when: not ansible_check_mode
   notify:
     - Validate nginx config
     - Reload nginx
