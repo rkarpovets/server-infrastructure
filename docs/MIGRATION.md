@@ -87,6 +87,16 @@ restores the certs only if they are missing. Re-runs are safe and idempotent.
 > **No cert backup?** After DNS points at the new IP and port 80 is reachable,
 > obtain fresh certs with certbot instead, then re-run the playbook.
 
+> **New host = new SSH host key.** The CI **Deploy** workflow pins it for you
+> (`ssh-keyscan` into `known_hosts`, with host key checking on), so a stale or
+> spoofed key can't silently redirect the apply. To get the same guarantee on a
+> manual run (local `ansible.cfg` keeps `host_key_checking = False`), pin the key
+> once first - using the port the host is actually on (22 on a fresh host, the
+> vaulted port after the `security` role runs):
+> ```bash
+> ssh-keyscan -H -p <port> <NEW_IP> >> ~/.ssh/known_hosts
+> ```
+
 ### 5. Verify
 ```bash
 ssh -p <ssh_port> ubuntu@<NEW_IP> 'systemctl is-active x-ui nginx sandstorm-server sandstorm-manager'

@@ -58,10 +58,20 @@ jobs:
           install -m 600 /dev/null "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
 
+      - name: Pin the production host key
+        working-directory: ansible
+        run: |
+          # Resolve host+port from the vaulted inventory and trust the key once,
+          # so the apply below can verify it with host key checking ON.
+          # -H + stderr->/dev/null keep the IP out of the run log.
+          read -r HOST PORT < <(ansible-inventory --host vps \
+            | jq -r '"\(.ansible_host) \(.ansible_port)"')
+          ssh-keyscan -H -p "$PORT" "$HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+
       - name: Apply the playbook to production
         working-directory: ansible
         env:
-          ANSIBLE_HOST_KEY_CHECKING: "false"
+          ANSIBLE_HOST_KEY_CHECKING: "true"
         run: |
           # No --check: this applies for real.
           # No --diff: keep rendered secrets out of the CI log.
