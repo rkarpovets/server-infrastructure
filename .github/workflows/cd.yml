@@ -1,5 +1,5 @@
 ---
-name: CD - production drift check
+name: CD
 
 # Read-only Continuous Delivery. On every push to main, once a day, and on
 # demand, run the playbook against production in --check mode and surface any

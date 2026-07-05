@@ -1,6 +1,6 @@
 # Server Infrastructure as Code
 
-[![CI](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml)
+[![CI](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml) [![CD](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml)
 
 Ansible automation that takes a clean Ubuntu host and provisions a complete,
 production-grade Linux server: base hardening, Docker, a full **observability
