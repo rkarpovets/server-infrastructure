@@ -58,8 +58,11 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "false"
         run: |
           set -o pipefail
+          # No --diff on purpose: it renders templated secrets (e.g. the
+          # Grafana password) into the public CI log. --check reports changed
+          # vs not; run --check --diff locally to inspect the actual changes.
           ansible-playbook site.yml -e target_hosts=production \
-            --check --diff 2>&1 | tee "$RUNNER_TEMP/check.log"
+            --check 2>&1 | tee "$RUNNER_TEMP/check.log"
 
       - name: Report drift in the job summary
         if: always()

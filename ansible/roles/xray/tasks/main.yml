@@ -4,6 +4,10 @@
   register: xui_current
   changed_when: false
   failed_when: false
+  # Read-only query: run it even in --check so the install gate below evaluates
+  # correctly. Otherwise the command is skipped in check mode, the gate wrongly
+  # fires, and the install block runs against a tarball that was never downloaded.
+  check_mode: false
 
 - name: Install 3x-ui {{ xray_version }}
   when: xray_version not in (xui_current.stdout | default(''))
