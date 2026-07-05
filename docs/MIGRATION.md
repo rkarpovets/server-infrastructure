@@ -21,7 +21,7 @@ vault password - it is a dumb target.
 |------|-----|-----|
 | `x-ui.db` | VPN inbounds, users, Reality keys, panel login | `backup-state.sh` -> `xray_db_restore_path` |
 | Let's Encrypt certs | nginx TLS won't start without them | `backup-state.sh` -> `nginx_letsencrypt_restore_path` (or re-run certbot) |
-| DNS record | the DuckDNS domain (`vault_nginx_server_name`) must point at the new IP | manual, in the DuckDNS panel |
+| DNS record | the domain (`vault_nginx_server_name`) must point at the new IP | manual, at your DNS provider |
 | Vault password | needed to decrypt secrets | keep `~/.ansible_vault_pass` backed up off-repo |
 
 Not carried (acceptable to lose): Prometheus metric history, Grafana volume
@@ -64,8 +64,8 @@ migration is a vault edit - `hosts.yml` needs no change (it already reads
 ansible-vault edit inventory/group_vars/all/vault.yml
 #   set vault_production_ip to <NEW_IP>
 ```
-Then repoint the DuckDNS domain (the one in `vault_nginx_server_name`) at
-`<NEW_IP>` in the DuckDNS panel.
+Then repoint the domain (`vault_nginx_server_name`) at `<NEW_IP>` with your
+DNS provider.
 
 ### 4. Run the playbook against the new host
 
