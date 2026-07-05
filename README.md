@@ -9,13 +9,13 @@ with TLS, an Xray (3x-ui) VPN panel, and a dedicated **Insurgency: Sandstorm**
 game server - all described as code and fully **idempotent**.
 
 The repository is the single source of truth for the *configuration* of the
-server: one  run provisions the production host from scratch, which
+server: one `site.yml` run provisions the production host from scratch, which
 makes disaster recovery and migration to new hardware a repeatable, idempotent
 operation.
 
 > Hostnames, IPs and the live firewall port map are intentionally **not** in the
-> repo. The `YOUR_IP` placeholder stands in for the production IP; the real
-> domain, non-standard ports and other host specifics live encrypted in Vault.
+> repo: the production IP, TLS domain and non-standard ports all live encrypted
+> in Ansible Vault, so a public clone never reveals the live host.
 
 ## Highlights
 
@@ -84,7 +84,7 @@ ansible/
 ├── ansible.cfg
 ├── site.yml                       # entry point - the whole stack
 ├── inventory/
-│   ├── hosts.yml                  # inventory host groups
+│   ├── hosts.yml                  # inventory hosts
 │   └── group_vars/
 │       ├── all/
 │       │   ├── main.yml           # shared vars + secret aliases
@@ -114,7 +114,7 @@ secrets exist without ever exposing them:
 - Telegram bot tokens (a monitoring bot and a dedicated game bot) + chat id
 - Sandstorm RCON password, GSLT, and game-stats tokens
 - mod.io API token
-- Production network topology (non-standard SSH / panel / VPN ports)
+- Production host: IP, TLS domain, and non-standard SSH / panel / VPN ports
 
 The vault password is kept outside the repository. The encrypted `vault.yml`
 **is** committed - that is what makes a clean clone able to rebuild production.
@@ -164,8 +164,9 @@ ansible-playbook site.yml --check --diff
 ansible-playbook site.yml --tags monitoring,logging
 ```
 
-Provide the connection details (host, key) at run time so they stay out of the
-repo, e.g. `-e ansible_host=YOUR_IP -e ansible_ssh_private_key_file=...`.
+Connection details live in the inventory and vault: the production IP
+(`vault_production_ip`), SSH port and key path are set in `hosts.yml`, so you
+only need the vault password to decrypt them at run time.
 
 ## Disaster recovery
 
@@ -181,5 +182,5 @@ through role variables. The full new-host runbook is in
 - **Idempotent** - declare desired state, converge to it, re-run safely.
 - **Pinned versions** - reproducibility over freshness for every image and binary.
 - **One responsibility per role**, composed rather than monolithic.
-- **Secrets and host specifics out of the repo** - vault for values, `group_vars`
-  and run-time `-e` for everything environment-specific.
+- **Secrets and host specifics out of the repo** - vault for values,
+  `group_vars` for per-host configuration.
