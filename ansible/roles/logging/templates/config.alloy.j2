@@ -1,5 +1,5 @@
 // {{ ansible_managed }}
-// Grafana Alloy — the collection agent (successor to Promtail).
+// Grafana Alloy - the collection agent (successor to Promtail).
 // It tails files / the journal and pushes to Loki.
 
 // ---- Where everything ships to ----
@@ -28,21 +28,21 @@ loki.source.file "iss" {
 
 loki.process "iss" {
   // Drop the noisiest, low-value spam so we don't burn disk/ingest.
-  // Tune these patterns to taste — start permissive, tighten later.
+  // Tune these patterns to taste - start permissive, tighten later.
   stage.drop {
-    // "<< listplayers" is our own RCON poll (every 20s) — pure noise.
+    // "<< listplayers" is our own RCON poll (every 20s) - pure noise.
     // Kept: "say <name> disconnected" broadcasts (useful leave events).
     expression = ".*(LogNetPackageMap|LogSpawn|VeryVerbose|<< listplayers).*"
   }
   // NOTE: we deliberately keep player names IN THE LOG LINE, never as a
   // label. Labels with unbounded values (player names) explode Loki's
-  // index cardinality — the #1 way to kill a Loki instance.
+  // index cardinality - the #1 way to kill a Loki instance.
   forward_to = [loki.write.default.receiver]
 }
 {% endif %}
 
 // ============================================================
-//  systemd journal — system + service logs
+//  systemd journal - system + service logs
 // ============================================================
 loki.source.journal "system" {
   max_age       = "12h"
@@ -56,7 +56,7 @@ loki.source.journal "system" {
 
 loki.relabel "journal" {
   forward_to = []
-  // Promote the unit name to a queryable label (bounded set → safe).
+  // Promote the unit name to a queryable label (bounded set -> safe).
   rule {
     source_labels = ["__journal__systemd_unit"]
     target_label  = "unit"

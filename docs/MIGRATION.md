@@ -15,8 +15,8 @@ playbook reproduces all software and configuration; this runbook covers the
 
 | Item | Why | How |
 |------|-----|-----|
-| `x-ui.db` | VPN inbounds, users, Reality keys, panel login | `backup-state.sh` → `xray_db_restore_path` |
-| Let's Encrypt certs | nginx TLS won't start without them | `backup-state.sh` → `nginx_letsencrypt_restore_path` (or re-run certbot) |
+| `x-ui.db` | VPN inbounds, users, Reality keys, panel login | `backup-state.sh` -> `xray_db_restore_path` |
+| Let's Encrypt certs | nginx TLS won't start without them | `backup-state.sh` -> `nginx_letsencrypt_restore_path` (or re-run certbot) |
 | DNS record | `example.duckdns.org` must point to the new IP | manual, in the DuckDNS panel |
 | Vault password | needed to decrypt secrets | keep `~/.ansible_vault_pass` backed up off-repo |
 
@@ -25,14 +25,14 @@ Not carried (acceptable to lose): Prometheus metric history, Grafana volume
 
 ## Procedure
 
-### 1. On the OLD server — back up state
+### 1. On the OLD server - back up state
 ```bash
 sudo scripts/backup-state.sh /tmp/infra-state
 # copy it to the Ansible control node:
 scp -r OLD_HOST:/tmp/infra-state ~/infra-state
 ```
 
-### 2. On the NEW server — bootstrap access
+### 2. On the NEW server - bootstrap access
 Fresh Ubuntu, then create the management user the playbook expects:
 ```bash
 sudo adduser --gecos "" ansible && sudo usermod -aG sudo ansible
@@ -42,7 +42,7 @@ ssh-copy-id -i ~/.ssh/id_ed25519.pub ansible@NEW_IP
 ```
 
 ### 3. Point inventory and DNS at the new host
-- `inventory/hosts.yml` → set the `production` host `ansible_host` to `NEW_IP`.
+- `inventory/hosts.yml` -> set the `production` host `ansible_host` to `NEW_IP`.
 - Update `example.duckdns.org` to `NEW_IP` in the DuckDNS panel (manual).
 
 ### 4. Run the playbook against production
@@ -68,7 +68,7 @@ Check the 3x-ui panel for your inbounds, and confirm a Telegram test alert fires
 
 ## Verifying the playbook matches the current prod (before trusting it)
 
-Run a read-only diff against the live server — it changes nothing:
+Run a read-only diff against the live server - it changes nothing:
 ```bash
 ansible-playbook site.yml -e target_hosts=production --check --diff
 ```

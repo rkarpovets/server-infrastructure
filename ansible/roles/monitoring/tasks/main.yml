@@ -1,8 +1,8 @@
 ---
-# Use the docker CLI (not community.docker.docker_network) — the Python SDK
+# Use the docker CLI (not community.docker.docker_network) - the Python SDK
 # module breaks on modern requests/urllib3 with "Not supported URL scheme
 # http+docker". docker_compose_v2 already shells out to the CLI, so we match it.
-- name: Ensure shared docker network exists (Grafana ↔ Loki)
+- name: Ensure shared docker network exists (Grafana <-> Loki)
   ansible.builtin.command: docker network create monitoring_net
   register: monitoring_net_create
   changed_when: monitoring_net_create.rc == 0

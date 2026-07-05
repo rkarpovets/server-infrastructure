@@ -1,5 +1,5 @@
 ---
-# Спершу валідація (як у sshd) — якщо конфіг битий, Reload не виконається.
+# Validate first (as in sshd): a broken config fails here, so Reload never runs.
 - name: Validate nginx config
   ansible.builtin.command: nginx -t
   changed_when: false

@@ -39,7 +39,7 @@ services:
     depends_on:
       - prometheus
     networks:
-      # default → Prometheus/node_exporter; monitoring_net → Loki (logging role)
+      # default -> Prometheus/node_exporter; monitoring_net -> Loki (logging role)
       - default
       - monitoring_net
 

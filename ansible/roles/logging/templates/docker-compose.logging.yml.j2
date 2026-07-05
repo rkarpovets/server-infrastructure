@@ -10,7 +10,7 @@ services:
       - loki_data:/loki
     networks:
       - {{ logging_network }}
-    # Loki port stays internal — only Grafana (same network) needs it.
+    # Loki port stays internal - only Grafana (same network) needs it.
     # No host port published.
 
   alloy:
@@ -25,10 +25,10 @@ services:
       - ./config.alloy:/etc/alloy/config.alloy:ro
       - alloy_data:/var/lib/alloy/data
 {% if logging_collect_iss %}
-      # game log — read-only (only where the game server is installed)
+      # game log - read-only (only where the game server is installed)
       - {{ iss_log_path }}:/logs/Insurgency.log:ro
 {% endif %}
-      # systemd journal — read-only
+      # systemd journal - read-only
       - /var/log/journal:/var/log/journal:ro
       - /etc/machine-id:/etc/machine-id:ro
     depends_on:

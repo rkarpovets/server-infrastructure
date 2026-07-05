@@ -2,11 +2,11 @@
 *.retry
 collections/
 
-# Vault password — NEVER commit (kept in $HOME)
+# Vault password - NEVER commit (kept in $HOME)
 .ansible_vault_pass
 *vault_pass*
 
-# Stateful data restored outside IaC — NEVER commit (VPN keys, TLS, databases)
+# Stateful data restored outside IaC - NEVER commit (VPN keys, TLS, databases)
 *.db
 x-ui.db
 *.tgz
@@ -16,7 +16,7 @@ x-ui.db
 *.p12
 infra-state*/
 
-# SSH keys — never let a private key slip into the repo
+# SSH keys - never let a private key slip into the repo
 id_rsa*
 id_ed25519*
 *.ppk

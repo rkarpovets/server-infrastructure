@@ -3,6 +3,6 @@
 # still installs and configures it, but the services stay disabled/stopped here.
 sandstorm_install_server: false
 
-# No game server here → no Insurgency.log to tail. Alloy collects only the
+# No game server here -> no Insurgency.log to tail. Alloy collects only the
 # systemd journal on the lab; the game-log pipeline is production-only.
 logging_collect_iss: false

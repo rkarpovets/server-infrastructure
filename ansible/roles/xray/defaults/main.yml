@@ -7,5 +7,5 @@ xray_panel_port: 2053
 xray_inbound_ports: []
 # Path on the control node to an x-ui.db backup to restore on a fresh host.
 # Empty = fresh panel. Restore is one-time (skipped if a db already exists).
-# Never commit a real x-ui.db — it holds VPN private keys and panel credentials.
+# Never commit a real x-ui.db - it holds VPN private keys and panel credentials.
 xray_db_restore_path: ""

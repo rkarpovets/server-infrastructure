@@ -1,5 +1,5 @@
 ---
-# Ansible collection dependencies. Pinned for reproducibility — the same
+# Ansible collection dependencies. Pinned for reproducibility - the same
 # versions install on a clean CI runner as on the control node.
 #   ansible-galaxy collection install -r requirements.yml
 collections:
