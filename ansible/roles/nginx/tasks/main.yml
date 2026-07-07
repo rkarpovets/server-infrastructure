@@ -14,6 +14,18 @@
     - nginx_enable_tls | bool
     - nginx_letsencrypt_restore_path | length > 0
 
+- name: Remove nginx worker CPU pinning
+  ansible.builtin.lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: '^\s*worker_cpu_affinity'
+    state: absent
+  # worker_cpu_affinity pins one worker per core, and an explicit affinity
+  # overrides isolcpus - a worker lands on the isolated game core. Without
+  # the pin the scheduler keeps all workers on the general-purpose cores.
+  notify:
+    - Validate nginx config
+    - Reload nginx
+
 - name: Remove default site
   ansible.builtin.file:
     path: /etc/nginx/sites-enabled/default
