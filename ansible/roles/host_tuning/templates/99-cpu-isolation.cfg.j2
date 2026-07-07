@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Sourced after 50-cloudimg-settings.cfg, which OVERWRITES
+# GRUB_CMDLINE_LINUX_DEFAULT (console=tty1 console=ttyS0). Append to it
+# here instead of assigning, or the serial console settings are lost.
+#
+# isolcpus=domain    - remove the core from the general scheduler
+# isolcpus=managed_irq - keep managed device IRQs off the core
+# nohz_full          - stop periodic timer ticks on the core (tickless)
+# rcu_nocbs          - offload RCU callbacks to the other cores
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT isolcpus=managed_irq,domain,{{ host_tuning_isolated_cpu }} nohz_full={{ host_tuning_isolated_cpu }} rcu_nocbs={{ host_tuning_isolated_cpu }}"

@@ -1,0 +1,8 @@
+---
+- name: Update grub
+  ansible.builtin.command: update-grub
+  changed_when: true
+
+# Deliberately NO reboot handler: applying the new kernel command line
+# requires a reboot of the production host, and that is always a manual,
+# human-scheduled action (players must be offline).

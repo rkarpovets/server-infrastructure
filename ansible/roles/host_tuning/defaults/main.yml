@@ -1,0 +1,11 @@
+---
+# CPU core dedicated to the single-threaded game server process. On the
+# 4-core VPS (cores 0-3) this core is removed from the scheduler, timer
+# ticks, RCU callbacks and IRQs - only an explicitly pinned process runs
+# on it. Everything else (k3s, docker, system) stays on the remaining cores.
+host_tuning_isolated_cpu: 3
+
+# Hex affinity mask of the NON-isolated cores, written to
+# /proc/irq/*/smp_affinity. Cores 0-2 -> binary 0111 -> "7".
+# Must be kept in sync with host_tuning_isolated_cpu.
+host_tuning_irq_affinity_mask: "7"

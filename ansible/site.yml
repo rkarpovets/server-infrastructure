@@ -6,6 +6,8 @@
     - common
     - docker
     - security
+    - role: host_tuning
+      tags: [host-tuning]
     - role: k3s
       tags: [k3s]
     - role: monitoring
