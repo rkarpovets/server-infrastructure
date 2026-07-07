@@ -1,0 +1,12 @@
+---
+# k3s version, pinned for reproducibility (same reasoning as requirements.yml).
+# Current stable: https://update.k3s.io/v1-release/channels/stable
+k3s_version: "v1.36.2+k3s1"
+
+# User who gets a kubeconfig copy for day-to-day kubectl without sudo.
+k3s_kubeconfig_user: ubuntu
+
+# Default k3s pod/service networks. ufw must allow traffic from them or
+# pod-to-service traffic silently drops (default incoming policy is deny).
+k3s_pod_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
