@@ -1,0 +1,8 @@
+---
+- name: Restart k3s
+  ansible.builtin.systemd:
+    name: k3s
+    state: restarted
+  # In --check mode on a host where k3s is not installed yet, the unit does
+  # not exist and a restart would error out. Real runs always restart.
+  when: not ansible_check_mode or (k3s_current.rc | default(1)) == 0

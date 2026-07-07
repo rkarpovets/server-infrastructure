@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# Traefik and ServiceLB are disabled on purpose: nginx and xray already own
+# ports 80/443 on the host, and leaving them enabled creates a bind race on
+# boot - whichever service starts first keeps the port.
+disable:
+  - traefik
+  - servicelb
+write-kubeconfig-mode: "0600"

@@ -6,6 +6,8 @@
     - common
     - docker
     - security
+    - role: k3s
+      tags: [k3s]
     - role: monitoring
       tags: [monitoring]
     - role: logging
