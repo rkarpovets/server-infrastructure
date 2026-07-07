@@ -6,6 +6,10 @@ After=network.target
 Type=simple
 User={{ sandstorm_user }}
 WorkingDirectory={{ sandstorm_install_dir }}
+# Pin the single-threaded game (and its children) to the isolated core.
+# The core itself is carved out by the host_tuning role (isolcpus in GRUB);
+# without this pin the game would never be scheduled onto it.
+CPUAffinity={{ host_tuning_isolated_cpu }}
 ExecStart={{ sandstorm_install_dir }}/server.sh
 Restart=on-failure
 RestartSec=15s

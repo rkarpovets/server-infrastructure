@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Keep hardware IRQs off the isolated game core
+# Late in boot on purpose: devices (and their IRQs) must already exist.
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/irq-affinity.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

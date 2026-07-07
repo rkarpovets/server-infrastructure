@@ -1,0 +1,54 @@
+---
+- name: Deploy GRUB CPU isolation drop-in
+  ansible.builtin.template:
+    src: 99-cpu-isolation.cfg.j2
+    dest: /etc/default/grub.d/99-cpu-isolation.cfg
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update grub
+
+- name: Deploy IRQ affinity script
+  ansible.builtin.template:
+    src: irq-affinity.sh.j2
+    dest: /usr/local/sbin/irq-affinity.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy IRQ affinity oneshot unit
+  ansible.builtin.template:
+    src: irq-affinity.service.j2
+    dest: /etc/systemd/system/irq-affinity.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: host_tuning_irq_unit
+
+- name: Ensure IRQ affinity unit is enabled and applied
+  ansible.builtin.systemd:
+    name: irq-affinity
+    enabled: true
+    state: started
+    daemon_reload: true
+  # Guard for --check on a host where the unit was never deployed: checking
+  # the state of a nonexistent unit errors instead of reporting drift.
+  when: not ansible_check_mode or not host_tuning_irq_unit.changed
+
+- name: Check whether CPU isolation is active in the running kernel
+  ansible.builtin.command: cat /sys/devices/system/cpu/isolated
+  register: host_tuning_isolated_now
+  changed_when: false
+  failed_when: false
+  # Read-only query: run it even in --check so the reboot warning below
+  # reflects the real host state.
+  check_mode: false
+
+- name: Warn when a reboot is required to apply CPU isolation
+  ansible.builtin.debug:
+    msg: >-
+      CPU isolation is configured in GRUB but NOT active in the running
+      kernel (isolated='{{ host_tuning_isolated_now.stdout }}', expected
+      '{{ host_tuning_isolated_cpu }}'). Schedule a manual reboot while no
+      players are online, then run the verification checklist.
+  when: host_tuning_isolated_now.stdout != host_tuning_isolated_cpu | string
