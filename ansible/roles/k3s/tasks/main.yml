@@ -67,6 +67,15 @@
     mode: "0600"
   when: not ansible_check_mode or k3s_current.rc == 0
 
+# k3s ships kubectl as a symlink to the k3s binary, and that wrapper defaults
+# to root-only /etc/rancher/k3s/k3s.yaml - it ignores ~/.kube/config unless
+# KUBECONFIG points at it.
+- name: Point kubectl at the copied kubeconfig
+  ansible.builtin.lineinfile:
+    path: "/home/{{ k3s_kubeconfig_user }}/.bashrc"
+    regexp: '^export KUBECONFIG='
+    line: export KUBECONFIG="$HOME/.kube/config"
+
 - name: Allow k3s pod and service networks through ufw
   community.general.ufw:
     rule: allow
