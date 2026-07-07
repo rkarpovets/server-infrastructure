@@ -63,9 +63,13 @@ jobs:
         run: |
           # Resolve host+port from the vaulted inventory and trust the key once,
           # so the apply below can verify it with host key checking ON.
+          # ansible-inventory prints hostvars as-defined, without resolving
+          # Jinja references (ansible_host: "{{ vault_production_ip }}" stays
+          # literal) - only a real ansible/ansible-playbook run templates them.
           # -H + stderr->/dev/null keep the IP out of the run log.
-          read -r HOST PORT < <(ansible-inventory --host vps \
-            | jq -r '"\(.ansible_host) \(.ansible_port)"')
+          IFS=: read -r HOST PORT < <(ansible vps -m debug \
+            -a 'msg={{ ansible_host }}:{{ ansible_port }}' -e target_hosts=production \
+            | sed -n 's/^  msg: //p')
           ssh-keyscan -H -p "$PORT" "$HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
 
       - name: Apply the playbook to production
