@@ -1,5 +1,10 @@
 ---
+# Path of the OLD docker-compose stack (kept as fallback until cutover).
+# Still referenced by the logging role (Loki datasource for the old Grafana);
+# remove together with the logging role migration.
 monitoring_dir: /opt/monitoring
+
+monitoring_namespace: monitoring
 prometheus_scrape_interval: 15s
 grafana_root_url: ""
 grafana_image: grafana/grafana:11.6.4
@@ -10,3 +15,11 @@ monitoring_alert_units:
   - nginx
   - docker
   - x-ui
+
+# NodePorts (k3s default range 30000-32767): host-side access points.
+# ufw's default deny keeps both closed to the internet.
+grafana_nodeport: 30300
+prometheus_nodeport: 30090
+
+prometheus_pvc_size: 5Gi
+grafana_pvc_size: 1Gi
