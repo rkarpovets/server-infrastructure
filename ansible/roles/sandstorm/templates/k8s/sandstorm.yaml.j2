@@ -58,6 +58,13 @@ spec:
             - /bin/bash
             - -c
             - exec taskset -c {{ host_tuning_isolated_cpu }} ./server.sh
+          env:
+            # runAsUser is the HOST steam uid, which has no /etc/passwd entry
+            # inside the image - without it HOME falls back to "/" and
+            # server.sh silently sources a nonexistent /.env (empty ports,
+            # empty tokens, default map - the whole boot goes sideways).
+            - name: HOME
+              value: {{ sandstorm_home }}
           # Second line of defense (the manager heals what RCON can reach):
           # if the game hangs so hard that even RCON stops answering, k8s
           # restarts the pod.
