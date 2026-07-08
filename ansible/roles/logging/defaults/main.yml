@@ -1,30 +1,21 @@
 ---
-# Where the logging stack lives (separate compose project from monitoring,
-# but same /opt convention and root ownership)
-logging_base_dir: /opt/logging
-
 # Pinned images (avoid :latest in IaC - reproducibility)
 loki_image: grafana/loki:3.4.2
 alloy_image: grafana/alloy:v1.6.1
-
-# Shared docker network that Grafana (monitoring) must also join
-logging_network: monitoring_net
 
 # Retention: how long Loki keeps logs before the compactor deletes them.
 # Insurgency.log grows ~5 MB/min when busy -> ~7 GB/day. With ~38 GB free,
 # 7 days is a safe ceiling. Tune down if disk gets tight.
 loki_retention_period: 168h          # 7 days
-loki_max_chunk_age: 2h
 
-# Collect the Insurgency: Sandstorm game log. Disable where the game server
 # Whether to tail the Insurgency game log. Set false on any host that does
-# not run the game server, so Alloy does not mount a missing log file.
+# not run the game server, so Alloy does not mount a missing log directory.
 logging_collect_iss: true
 
-# Path to the live game log on the host (mounted read-only into Alloy)
+# Path to the live game log on the host. Alloy mounts its parent DIRECTORY
+# read-only (a file mount would go stale when the game recreates the log).
 iss_log_path: /home/steam/.local/share/Steam/steamapps/common/sandstorm_server/Insurgency/Saved/Logs/Insurgency.log
 
-# Grafana provisioning dir owned by the monitoring role - we drop a Loki
-# datasource file here so Grafana auto-discovers Loki on restart. Reuses
-# monitoring_dir (defined in the monitoring role, visible play-wide).
-grafana_datasources_dir: "{{ monitoring_dir }}/grafana/provisioning/datasources"
+# local-path ignores requested sizes (no quotas) - these are documentation.
+loki_pvc_size: 10Gi
+alloy_pvc_size: 1Gi

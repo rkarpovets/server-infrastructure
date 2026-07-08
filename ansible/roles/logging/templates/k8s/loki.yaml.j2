@@ -1,0 +1,87 @@
+# Loki lives in the monitoring namespace on purpose: Grafana's datasource
+# URL (http://loki:3100) then works unchanged from the docker-compose days.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: {{ monitoring_namespace }}
+data:
+  loki-config.yml: |
+{{ lookup('template', 'loki-config.yml.j2') | indent(4, true) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: {{ monitoring_namespace }}
+spec:
+  storageClassName: local-path
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ loki_pvc_size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: {{ monitoring_namespace }}
+  labels:
+    app: loki
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+      annotations:
+        checksum/config: {{ lookup('template', 'loki-config.yml.j2') | hash('sha256') }}
+    spec:
+      securityContext:
+        # local-path volumes are created root-owned; the loki image runs as
+        # uid 10001 (same trap as prometheus/grafana).
+        fsGroup: 10001
+      containers:
+        - name: loki
+          image: {{ loki_image }}
+          args:
+            - -config.file=/etc/loki/config/loki-config.yml
+          ports:
+            - containerPort: 3100
+              name: http
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            # Loki replays the WAL on start; give it slack before failing.
+            initialDelaySeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+              readOnly: true
+            - name: data
+              mountPath: /loki
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: loki-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: {{ monitoring_namespace }}
+spec:
+  # ClusterIP only - Loki is reachable solely from inside the cluster
+  # (Grafana queries it, Alloy pushes to it). No host/NodePort exposure.
+  selector:
+    app: loki
+  ports:
+    - port: 3100
+      targetPort: http
