@@ -36,3 +36,4 @@ fact_cache/
 .DS_Store
 .idea/
 .vscode/
+_rendered/
