@@ -1,0 +1,57 @@
+# node_exporter as a DaemonSet - same setup as the old docker-compose
+# service: host PID namespace + the whole host filesystem mounted read-only
+# under /host, textfile metrics (game players, unit states) read from the
+# host directory written to by servermanager.py and the systemd timer.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: {{ monitoring_namespace }}
+  labels:
+    app: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      hostPID: true
+      containers:
+        - name: node-exporter
+          image: {{ node_exporter_image }}
+          args:
+            - --path.rootfs=/host
+            - --collector.textfile.directory=/textfile
+          ports:
+            - containerPort: 9100
+              name: metrics
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+              readOnly: true
+              mountPropagation: HostToContainer
+            - name: textfile
+              mountPath: /textfile
+              readOnly: true
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+        - name: textfile
+          hostPath:
+            path: {{ monitoring_textfile_dir }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: {{ monitoring_namespace }}
+spec:
+  selector:
+    app: node-exporter
+  ports:
+    - port: 9100
+      targetPort: metrics

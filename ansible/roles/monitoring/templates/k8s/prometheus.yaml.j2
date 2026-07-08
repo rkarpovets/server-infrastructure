@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: {{ monitoring_namespace }}
+data:
+  prometheus.yml: |
+{{ lookup('template', 'prometheus.yml.j2') | indent(4, true) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: {{ monitoring_namespace }}
+spec:
+  storageClassName: local-path
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ prometheus_pvc_size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: {{ monitoring_namespace }}
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  # Single instance owning an RWO volume - never run old and new pod at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+      annotations:
+        # Config lives in a ConfigMap; a ConfigMap change alone does not
+        # restart the pod. Hashing the rendered config here makes any config
+        # change roll the deployment automatically.
+        checksum/config: {{ lookup('template', 'prometheus.yml.j2') | hash('sha256') }}
+    spec:
+      securityContext:
+        # local-path provisioner creates the volume dir root-owned; the image
+        # runs as nobody (65534). fsGroup fixes the group ownership so the
+        # TSDB is writable (trap #1 from the migration plan).
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: {{ prometheus_image }}
+          args:
+            - --config.file=/etc/prometheus/config/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+          ports:
+            - containerPort: 9090
+              name: http
+          readinessProbe:
+            httpGet: { path: /-/ready, port: http }
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: http }
+          volumeMounts:
+            # Whole-directory mount, not subPath: subPath-mounted files never
+            # update when the ConfigMap changes (trap #2 from the plan).
+            - name: config
+              mountPath: /etc/prometheus/config
+              readOnly: true
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: {{ monitoring_namespace }}
+spec:
+  # NodePort so the host can reach it on 127.0.0.1:{{ prometheus_nodeport }}
+  # (SSH tunnel access); ufw's default deny keeps it closed to the internet.
+  type: NodePort
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: http
+      nodePort: {{ prometheus_nodeport }}

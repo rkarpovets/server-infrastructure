@@ -1,103 +1,7 @@
 ---
-# Use the docker CLI (not community.docker.docker_network) - the Python SDK
-# module breaks on modern requests/urllib3 with "Not supported URL scheme
-# http+docker". docker_compose_v2 already shells out to the CLI, so we match it.
-- name: Ensure shared docker network exists (Grafana <-> Loki)
-  ansible.builtin.command: docker network create monitoring_net
-  register: monitoring_net_create
-  changed_when: monitoring_net_create.rc == 0
-  failed_when:
-    - monitoring_net_create.rc != 0
-    - "'already exists' not in monitoring_net_create.stderr"
-
-- name: Create monitoring directory
-  ansible.builtin.file:
-    path: "{{ monitoring_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0750"
-
-- name: Create Grafana provisioning directories
-  ansible.builtin.file:
-    path: "{{ monitoring_dir }}/grafana/provisioning/{{ item }}"
-    state: directory
-    mode: "0750"
-  loop:
-    - datasources
-    - alerting
-    - dashboards
-
-- name: Deploy docker-compose.yml
-  ansible.builtin.template:
-    src: docker-compose.yml.j2
-    dest: "{{ monitoring_dir }}/docker-compose.yml"
-    owner: root
-    group: root
-    mode: "0640"
-  notify: Restart monitoring stack
-
-- name: Deploy prometheus.yml
-  ansible.builtin.template:
-    src: prometheus.yml.j2
-    dest: "{{ monitoring_dir }}/prometheus.yml"
-    mode: "0644"
-  notify: Restart monitoring stack
-
-- name: Deploy Grafana datasource provisioning
-  ansible.builtin.template:
-    src: grafana-datasource.yml.j2
-    dest: "{{ monitoring_dir }}/grafana/provisioning/datasources/prometheus.yml"
-    mode: "0644"
-  notify: Restart monitoring stack
-
-- name: Deploy Grafana contact points (Telegram)
-  ansible.builtin.template:
-    src: grafana-contactpoints.yml.j2
-    dest: "{{ monitoring_dir }}/grafana/provisioning/alerting/contactpoints.yml"
-    mode: "0640"
-  notify: Restart monitoring stack
-
-- name: Deploy Grafana notification policy
-  ansible.builtin.copy:
-    src: grafana-policies.yml
-    dest: "{{ monitoring_dir }}/grafana/provisioning/alerting/policies.yml"
-    mode: "0644"
-  notify: Restart monitoring stack
-
-- name: Deploy Grafana alert rules
-  ansible.builtin.template:
-    src: grafana-rules.yml.j2
-    dest: "{{ monitoring_dir }}/grafana/provisioning/alerting/rules.yml"
-    mode: "0644"
-  notify: Restart monitoring stack
-
-- name: Create Grafana dashboards content directory
-  ansible.builtin.file:
-    path: "{{ monitoring_dir }}/grafana/dashboards"
-    state: directory
-    mode: "0755"
-
-- name: Deploy Grafana dashboards provider config
-  ansible.builtin.copy:
-    src: grafana-dashboards-provider.yml
-    dest: "{{ monitoring_dir }}/grafana/provisioning/dashboards/provider.yml"
-    mode: "0644"
-  notify: Restart monitoring stack
-
-- name: Deploy Node Exporter Full dashboard
-  ansible.builtin.copy:
-    src: dashboards/node-exporter-full.json
-    dest: "{{ monitoring_dir }}/grafana/dashboards/node-exporter-full.json"
-    mode: "0644"
-  notify: Restart monitoring stack
-
-- name: Deploy Insurgency Sandstorm dashboard (players online + per-core CPU)
-  ansible.builtin.copy:
-    src: dashboards/iss.json
-    dest: "{{ monitoring_dir }}/grafana/dashboards/iss.json"
-    mode: "0644"
-  notify: Restart monitoring stack
+# --- Host level: textfile-collector inputs -----------------------------------
+# Written on the HOST (by servermanager.py and the systemd timer below) and
+# read by node_exporter in k3s through a hostPath mount.
 
 - name: Create node_exporter textfile directory
   ansible.builtin.file:
@@ -131,7 +35,49 @@
     state: started
     daemon_reload: true
 
-- name: Start monitoring stack
-  community.docker.docker_compose_v2:
-    project_src: "{{ monitoring_dir }}"
+# --- k3s: monitoring stack ----------------------------------------------------
+# The old docker-compose stack in /opt/monitoring is deliberately NOT managed
+# (and NOT removed) here anymore: it keeps running as the fallback until the
+# k3s stack is confirmed working and nginx is switched over. Tear it down
+# manually afterwards (docker compose down in /opt/monitoring).
+
+- name: Install kubernetes python client (needed by kubernetes.core.k8s)
+  ansible.builtin.apt:
+    name: python3-kubernetes
     state: present
+
+- name: Check kubernetes python client presence
+  ansible.builtin.stat:
+    path: /usr/lib/python3/dist-packages/kubernetes
+  register: monitoring_k8s_py
+  # Read-only query: run it even in --check so the guard below reflects the
+  # real host state (the apt task above does not install in check mode).
+  check_mode: false
+
+- name: Apply monitoring manifests to k3s
+  # Guard for --check on a host that never ran the apply: without the python
+  # client the k8s module errors instead of reporting drift.
+  when: not ansible_check_mode or monitoring_k8s_py.stat.exists
+  module_defaults:
+    kubernetes.core.k8s:
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+      state: present
+  block:
+    - name: Create monitoring namespace
+      kubernetes.core.k8s:
+        definition: "{{ lookup('template', 'k8s/namespace.yaml.j2') }}"
+
+    - name: Deploy node-exporter
+      kubernetes.core.k8s:
+        definition: "{{ lookup('template', 'k8s/node-exporter.yaml.j2') }}"
+
+    - name: Deploy Prometheus
+      kubernetes.core.k8s:
+        definition: "{{ lookup('template', 'k8s/prometheus.yaml.j2') }}"
+
+    - name: Deploy Grafana
+      # The rendered manifests embed the admin password and the Telegram bot
+      # token - never let the module print them in diffs or errors.
+      no_log: true
+      kubernetes.core.k8s:
+        definition: "{{ lookup('template', 'k8s/grafana.yaml.j2') }}"

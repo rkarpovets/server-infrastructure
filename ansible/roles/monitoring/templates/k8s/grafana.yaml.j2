@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: {{ monitoring_namespace }}
+stringData:
+  admin-password: {{ grafana_admin_password | to_json }}
+---
+# Contact points hold the Telegram bot token -> Secret, not ConfigMap.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-contactpoints
+  namespace: {{ monitoring_namespace }}
+stringData:
+  contactpoints.yml: |
+{{ lookup('template', 'grafana-contactpoints.yml.j2') | indent(4, true) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  namespace: {{ monitoring_namespace }}
+data:
+  policies.yml: |
+{{ lookup('file', 'grafana-policies.yml') | indent(4, true) }}
+  rules.yml: |
+{{ lookup('template', 'grafana-rules.yml.j2') | indent(4, true) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: {{ monitoring_namespace }}
+data:
+  # The Prometheus k8s Service is named like the old docker-compose service,
+  # so the datasource URL (http://prometheus:9090) carries over unchanged.
+  prometheus.yml: |
+{{ lookup('template', 'grafana-datasource.yml.j2') | indent(4, true) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: {{ monitoring_namespace }}
+data:
+  provider.yml: |
+{{ lookup('file', 'grafana-dashboards-provider.yml') | indent(4, true) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: {{ monitoring_namespace }}
+data:
+  iss.json: {{ lookup('file', 'dashboards/iss.json') | to_json }}
+  node-exporter-full.json: {{ lookup('file', 'dashboards/node-exporter-full.json') | to_json }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: {{ monitoring_namespace }}
+spec:
+  storageClassName: local-path
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ grafana_pvc_size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ monitoring_namespace }}
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+      annotations:
+        # Provisioned alerting/datasources only load on startup - roll the
+        # pod whenever any provisioning content changes.
+        checksum/provisioning: {{ (lookup('template', 'grafana-contactpoints.yml.j2') ~ lookup('template', 'grafana-rules.yml.j2') ~ lookup('template', 'grafana-datasource.yml.j2') ~ lookup('file', 'grafana-policies.yml')) | hash('sha256') }}
+    spec:
+      securityContext:
+        # Grafana runs as uid 472; fsGroup makes the root-owned local-path
+        # volume writable (same trap as prometheus).
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: {{ grafana_image }}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-password
+{% if grafana_root_url %}
+            - name: GF_SERVER_ROOT_URL
+              value: {{ grafana_root_url | to_json }}
+{% endif %}
+          ports:
+            - containerPort: 3000
+              name: http
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
+              readOnly: true
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        # One provisioning dir fed by two sources: the Secret (contact points
+        # with the bot token) and the ConfigMap (policies + rules).
+        - name: alerting
+          projected:
+            sources:
+              - secret:
+                  name: grafana-contactpoints
+              - configMap:
+                  name: grafana-alerting
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: {{ monitoring_namespace }}
+spec:
+  # NodePort: nginx on the host will proxy to 127.0.0.1:{{ grafana_nodeport }}
+  # at cutover; ufw's default deny keeps the port closed to the internet.
+  type: NodePort
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: http
+      nodePort: {{ grafana_nodeport }}
