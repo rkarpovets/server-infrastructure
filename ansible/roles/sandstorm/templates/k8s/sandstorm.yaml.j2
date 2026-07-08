@@ -61,15 +61,24 @@ spec:
             - name: HOME
               value: {{ sandstorm_home }}
           # Second line of defense (the manager heals what RCON can reach):
-          # if the game hangs so hard that even RCON stops answering, k8s
-          # restarts the pod.
+          # if the game hangs so hard it stops logging, k8s restarts the pod.
+          #
+          # NOT a tcpSocket probe on the RCON port: ISS leaks a server-side
+          # FRconConnection thread for EVERY accepted connection, so a probe
+          # that connects every periodSeconds piles up leaked threads (~1 per
+          # probe) and slowly saturates the isolated core. Instead we check the
+          # game log is still being written - the manager's RCON poll alone
+          # touches it every ~20s, so a stale log means the game is truly hung.
           livenessProbe:
-            tcpSocket:
-              port: {{ sandstorm_rcon_port }}
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - test $(( $(date +%s) - $(stat -c %Y "{{ sandstorm_install_dir }}/Insurgency/Saved/Logs/Insurgency.log") )) -lt 120
             # Mods + first map load take minutes - do not shoot early.
             initialDelaySeconds: 240
-            periodSeconds: 20
-            failureThreshold: 9
+            periodSeconds: 30
+            failureThreshold: 4
           volumeMounts:
             - name: steam-home
               mountPath: {{ sandstorm_home }}
