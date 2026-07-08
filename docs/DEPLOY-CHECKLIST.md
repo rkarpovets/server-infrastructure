@@ -66,7 +66,10 @@ var in the workflow for that first run.)
 
 ## E. Verify after deploy
 
-- [ ] `systemctl is-active x-ui nginx sandstorm-server sandstorm-manager` -> all `active`.
-- [ ] `sudo docker ps` -> grafana, prometheus, node_exporter, loki, alloy all `Up`.
+- [ ] `systemctl is-active x-ui k3s` -> both `active`.
+- [ ] `kubectl get pods -A` -> nginx, grafana, prometheus, node-exporter, loki,
+      alloy `Running`; `sandstorm` pod `2/2` (game + manager sidecar).
 - [ ] Grafana opens over HTTPS, 3x-ui panel shows your inbounds, a Telegram test
-      alert fires.
+      alert fires, the game server answers on its query port.
+- [ ] **Fresh host only:** reboot once to activate the CPU isolation, then
+      `cat /sys/devices/system/cpu/isolated` shows the game core.

@@ -6,9 +6,9 @@ grafana_image: grafana/grafana:11.6.4
 node_exporter_image: quay.io/prometheus/node-exporter:v1.9.1
 prometheus_image: prom/prometheus:v3.1.0
 monitoring_textfile_dir: /var/lib/node_exporter
+# Only what still runs under systemd on the host. Everything containerized
+# is watched by k8s liveness/restart policy instead.
 monitoring_alert_units:
-  - nginx
-  - docker
   - x-ui
 
 # NodePorts (k3s default range 30000-32767): host-side access points.

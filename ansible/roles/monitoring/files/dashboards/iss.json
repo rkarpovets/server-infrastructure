@@ -5,8 +5,9 @@
   "timezone": "utc",
   "editable": true,
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
+  "graphTooltip": 1,
   "time": { "from": "now-6h", "to": "now" },
   "templating": { "list": [] },
   "annotations": {
@@ -50,118 +51,137 @@
     {
       "id": 10,
       "type": "stat",
-      "title": "Players online",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "title": "Current scenario",
+      "description": "Map + side: _S = playing as Security, _I = as Insurgents.",
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "unit": "short", "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } },
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "text" }, "noValue": "-" },
         "overrides": []
       },
-      "options": { "graphMode": "area", "colorMode": "value", "textMode": "value",
+      "options": { "graphMode": "none", "colorMode": "none", "textMode": "name",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online", "instant": true } ]
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "label_replace(iss_map_info == 1, \"s\", \"$1\", \"side\", \"^(.).*\")",
+          "legendFormat": "{{map}}_{{s}}", "instant": true }
+      ]
     },
     {
       "id": 11,
       "type": "stat",
-      "title": "Slots",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "text" } }, "overrides": [] },
-      "options": { "graphMode": "none", "colorMode": "none", "textMode": "value",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_max", "instant": true } ]
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "Current map",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } }, "overrides": [] },
-      "options": { "graphMode": "none", "colorMode": "none", "textMode": "name",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_map_info", "legendFormat": "{{map}}", "instant": true } ]
-    },
-    {
-      "id": 13,
-      "type": "stat",
-      "title": "Busiest core now",
-      "description": "Highest single-core busy %. Sandstorm is single-threaded — this is the load that matters.",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "title": "Players online",
+      "description": "Live player count out of the configured slots (see the dashed line in the trend panel).",
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "unit": "percent", "min": 0, "max": 100, "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 70 }, { "color": "red", "value": 85 } ] } },
+        "defaults": { "unit": "short", "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "blue" } },
         "overrides": []
       },
       "options": { "graphMode": "area", "colorMode": "value", "textMode": "value",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "max(100 - (avg by (cpu) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100))", "instant": true } ]
-    },
-    {
-      "id": 1,
-      "type": "timeseries",
-      "title": "Players vs busiest CPU core",
-      "description": "The correlation view: player count (left axis) overlaid on the busiest single core's busy % (right axis). If load tracks players, the lines move together.",
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "lineInterpolation": "smooth", "axisPlacement": "left" } },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "players" },
-            "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }, { "id": "unit", "value": "short" }, { "id": "custom.axisPlacement", "value": "left" }, { "id": "custom.lineInterpolation", "value": "stepAfter" } ] },
-          { "matcher": { "id": "byName", "options": "busiest core %" },
-            "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }, { "id": "unit", "value": "percent" }, { "id": "max", "value": 100 }, { "id": "custom.axisPlacement", "value": "right" }, { "id": "custom.axisLabel", "value": "CPU %" } ] }
-        ]
-      },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online", "legendFormat": "players" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "max(100 - (avg by (cpu) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100))", "legendFormat": "busiest core %" }
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online", "instant": false }
       ]
     },
     {
-      "id": 2,
+      "id": 12,
+      "type": "stat",
+      "title": "Game core load",
+      "description": "Busy % of the isolated core (cpu 3) that runs ONLY the game process. This is the number that decides tick stability.",
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "min": 0, "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 70 },
+            { "color": "red", "value": 85 } ] } },
+        "overrides": []
+      },
+      "options": { "graphMode": "area", "colorMode": "value", "textMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{cpu=\"3\",mode=\"idle\"}[2m])) * 100)", "instant": false }
+      ]
+    },
+    {
+      "id": 20,
       "type": "timeseries",
-      "title": "Players online (detail)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "title": "Players online",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "min": 0, "unit": "short",
-          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineInterpolation": "stepAfter", "lineWidth": 2 } },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineInterpolation": "stepAfter", "lineWidth": 2 },
+          "color": { "mode": "fixed", "fixedColor": "blue" } },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "max" },
-            "properties": [ { "id": "custom.lineStyle", "value": { "dash": [8, 8], "fill": "dash" } }, { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] }
+          { "matcher": { "id": "byName", "options": "slots" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "dash": [8, 8], "fill": "dash" } },
+              { "id": "custom.fillOpacity", "value": 0 },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] }
         ]
       },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online", "legendFormat": "players" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_max", "legendFormat": "max" }
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_max", "legendFormat": "slots" }
       ]
     },
     {
-      "id": 3,
+      "id": 21,
       "type": "timeseries",
-      "title": "CPU per core (%)",
-      "description": "Per-core busy %. The Sandstorm server is single-threaded, so one core can saturate while the average stays low.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "title": "Game core load (%)",
+      "description": "Only the isolated game core (cpu 3). Shares the crosshair with the players panel - move the cursor to correlate load with player count.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "min": 0, "max": 100, "unit": "percent",
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } },
+          "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "lineInterpolation": "smooth",
+            "thresholdsStyle": { "mode": "line" } },
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "transparent", "value": null },
+            { "color": "red", "value": 85 } ] } },
         "overrides": []
       },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "single" } },
       "targets": [
-        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "100 - (avg by (cpu) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)", "legendFormat": "core {{cpu}}" }
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{cpu=\"3\",mode=\"idle\"}[2m])) * 100)", "legendFormat": "game core" }
       ]
     },
     {
-      "id": 4,
+      "id": 30,
+      "type": "state-timeline",
+      "title": "Map history",
+      "description": "Which scenario was live when. _S = Security, _I = Insurgents.",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 70, "lineWidth": 0 },
+          "color": { "mode": "palette-classic" },
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "options": { "mergeValues": true, "showValue": "never", "alignValue": "left",
+        "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "label_replace(iss_map_info == 1, \"s\", \"$1\", \"side\", \"^(.).*\")",
+          "legendFormat": "{{map}}_{{s}}" }
+      ]
+    },
+    {
+      "id": 40,
       "type": "logs",
       "title": "Server logs (live)",
       "description": "Game log via Loki. listplayers RCON polling is filtered out.",

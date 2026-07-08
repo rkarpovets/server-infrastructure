@@ -3,15 +3,17 @@
 [![CI](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml) [![CD](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml)
 
 Ansible automation that takes a clean Ubuntu host and provisions a complete,
-production-grade Linux server: base hardening, Docker, a full **observability
-stack** (metrics **and** logs with Telegram alerting), an Nginx reverse proxy
-with TLS, an Xray (3x-ui) VPN panel, and a dedicated **Insurgency: Sandstorm**
-game server - all described as code and fully **idempotent**.
+production-grade Linux server on a single-node **Kubernetes (k3s)** cluster:
+base hardening, a full **observability stack** (metrics **and** logs with
+Telegram alerting), an Nginx reverse proxy with TLS, an Xray (3x-ui) VPN panel,
+and a dedicated **Insurgency: Sandstorm** game server pinned to a fully
+**isolated CPU core** - all described as code and fully **idempotent**.
 
-The repository is the single source of truth for the *configuration* of the
-server: one `site.yml` run provisions the production host from scratch, which
-makes disaster recovery and migration to new hardware a repeatable, idempotent
-operation.
+Ansible stays the single source of truth and the only deploy mechanism: it
+renders the Kubernetes manifests from vault-backed variables and applies them
+through `kubernetes.core.k8s`. One `site.yml` run provisions the production
+host from scratch, which makes disaster recovery and migration to new hardware
+a repeatable operation.
 
 > Hostnames, IPs and the live firewall port map are intentionally **not** in the
 > repo: the production IP, TLS domain and non-standard ports all live encrypted
@@ -19,63 +21,85 @@ operation.
 
 ## Highlights
 
-- **Eight focused roles**, one responsibility each, composed by a single `site.yml`.
-- **Idempotent by design** - a second run reports `changed=0`; version-pinned,
-  heavy installs (steamcmd, 3x-ui) only act when state actually differs, so
-  re-runs never disturb live services.
-- **Observability as code** - Prometheus, Grafana, Loki, node_exporter and Alloy,
-  with datasources, dashboards, alert rules, contact points and notification
-  policies all provisioned from files (no click-ops).
+- **Kubernetes without the ceremony** - k3s single-node with Traefik/ServiceLB
+  disabled (the host already owns 80/443), NodePorts bound to loopback only
+  (kube-proxy NATs around the host firewall - a lesson this repo encodes),
+  manifests templated and applied by Ansible, no Helm, no registry.
+- **A quiet core for the game** - `isolcpus`/`nohz_full`/`rcu_nocbs` + IRQ
+  steering carve one core out of the scheduler entirely; the single-threaded
+  game server is pinned to it with `taskset`, and a hot mod.io SDK thread is
+  evicted back to the general cores by a host-side timer.
+- **Game + RCON manager as one pod** - the Python manager runs as a sidecar
+  (no shared process namespace: it talks to the game only over loopback RCON).
+  The manager heals what RCON can reach; if the game hangs so hard RCON stops
+  answering, the kubelet liveness probe restarts the pod. **Nothing restarts
+  the game automatically on config changes** - that is always a deliberate,
+  manual rollout in a no-players window.
+- **Observability as code** - Prometheus, Grafana, Loki, node_exporter and Alloy
+  in-cluster, with datasources, dashboards, alert rules, contact points and
+  notification policies all provisioned from files (no click-ops).
+- **CI that sees the real YAML** - every PR renders the k8s manifests with dummy
+  secrets and validates them with kubeconform, next to yamllint and ansible-lint;
+  a scheduled pipeline runs `--check` against production daily and reports drift
+  (the `kubernetes.core.k8s` module diffs the live cluster objects in check mode).
 - **Secrets in Ansible Vault** - the repo shows *which* secrets exist, never their
   values; the vault password lives outside the repo.
-- **Rebuildable from scratch** - one `site.yml` run reproduces the whole host
-  on new hardware; host specifics live in `group_vars` and vault, not the roles.
-- **Disaster-recovery aware** - stateful data (VPN DB, TLS certs) is backed up
-  out-of-band and restored through role variables; see [docs/MIGRATION.md](docs/MIGRATION.md).
+- **Idempotent by design** - a second run reports `changed=0`; version-pinned,
+  heavy installs (steamcmd, 3x-ui, k3s) only act when state actually differs.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   admin([Admin]):::ext -->|HTTPS| nginx
-  players([Players]):::ext -->|UDP game / query| sandstorm
+  players([Players]):::ext -->|UDP game / query| game
 
-  subgraph host[Linux server]
-    nginx[nginx<br/>reverse proxy + TLS] --> grafana
-
-    subgraph obs[Observability stack - Docker]
+  subgraph host[Linux server - k3s single node]
+    subgraph k8s[k3s workloads]
+      nginx[nginx<br/>hostPort 80 / TLS] --> grafana
       grafana[Grafana] --> prometheus[Prometheus]
       grafana --> loki[Loki]
       prometheus --> nodeexp[node_exporter]
       alloy[Grafana Alloy] --> loki
+
+      subgraph pod[game pod - hostNetwork]
+        game[Insurgency: Sandstorm<br/>taskset -> isolated core]
+        manager[RCON manager<br/>sidecar] -->|RCON 127.0.0.1| game
+      end
     end
 
-    sandstorm[Insurgency: Sandstorm<br/>steamcmd + manager]
-    sandstorm -->|players-online metric| nodeexp
-    sandstorm -->|game log| alloy
+    certbot[certbot<br/>webroot renewals] -.->|certs| nginx
     journald[systemd journal] --> alloy
-    xray[Xray / 3x-ui<br/>VPN panel]
+    xray[Xray / 3x-ui VPN<br/>native systemd]
   end
 
+  manager -->|players metric| nodeexp
+  game -->|game log| alloy
   grafana -->|alerts| tg([Telegram]):::ext
+  manager -->|live board| tg
   classDef ext fill:#1f2937,stroke:#475569,color:#e5e7eb;
 ```
+
+Xray stays native on purpose: it works at the network layer (443, VPN inbounds)
+where containerization buys nothing and complicates everything. A mixed runtime
+is a decision, not an accident.
 
 ## Roles
 
 | Role | What it does |
 |------|--------------|
-| `common`     | Base packages, timezone, apt hygiene |
-| `security`   | UFW firewall, fail2ban (systemd backend), SSH hardening drop-in |
-| `docker`     | Docker CE + Compose plugin from Docker's official apt repository |
-| `monitoring` | node_exporter + Prometheus + Grafana via Compose; datasources, dashboards, alert rules, Telegram contact point and notification policy - all provisioned as code |
-| `logging`    | Loki + Grafana Alloy via Compose; tails the game log and the systemd journal, 7-day retention, queryable in the same Grafana |
-| `nginx`      | Reverse proxy to Grafana, websocket upgrade, security headers, optional TLS (Let's Encrypt restore) |
-| `xray`       | Native 3x-ui install (pinned binary + systemd), one-time DB restore |
-| `sandstorm`  | steamcmd dedicated server, game configs, mod.io mods, a Python manager, and systemd units |
+| `common`      | Base packages, timezone, apt hygiene |
+| `security`    | UFW firewall, fail2ban (systemd backend), SSH hardening drop-in |
+| `host_tuning` | Full CPU-core isolation for the game: GRUB (`isolcpus`, `nohz_full`, `rcu_nocbs`) + IRQ affinity steering |
+| `k3s`         | k3s install (pinned, Traefik/ServiceLB disabled, loopback-only NodePorts), kubeconfig for the admin user |
+| `monitoring`  | node_exporter (DaemonSet) + Prometheus + Grafana; datasources, dashboards, alert rules, Telegram contact point - all rendered into ConfigMaps/Secrets and applied as manifests |
+| `logging`     | Loki + Grafana Alloy; tails the game log and the systemd journal, 7-day retention, queryable in the same Grafana |
+| `nginx`       | nginx Deployment on hostPort 80/TLS: fronts Grafana, serves ACME webroot renewals, keeps file logs for the fail2ban jails |
+| `xray`        | Native 3x-ui install (pinned binary + systemd), one-time DB restore |
+| `sandstorm`   | steamcmd dedicated server + mod.io mods on the host filesystem, game configs, and the two-container game pod (game + RCON-manager sidecar) |
 
-Applied in dependency order by `site.yml`: `common -> docker -> security ->
-monitoring -> logging -> nginx -> xray -> sandstorm`.
+Applied in dependency order by `site.yml`: `common -> security -> host_tuning ->
+k3s -> monitoring -> logging -> nginx -> xray -> sandstorm`.
 
 ## Repository layout
 
@@ -91,18 +115,20 @@ ansible/
 │       │   └── vault.yml          # ansible-vault encrypted secrets
 │       └── production.yml         # production overrides (ports/domain via vault)
 └── roles/                         # one responsibility per role
+    └── */templates/k8s/           # Kubernetes manifests (Jinja2-templated)
 docs/MIGRATION.md                  # disaster-recovery / new-host runbook
 docs/DEPLOY-CHECKLIST.md           # pre-flight checklist for a new-IP deploy
+scripts/render-k8s-manifests.py    # CI: render manifests with dummy secrets for kubeconform
 scripts/backup-state.sh            # backs up stateful data the playbook does not manage
 ```
 
 ## Configuration and host specifics
 
 Everything host-specific - IPs, ports, TLS domain, firewall rules - is expressed
-through `group_vars` and Ansible Vault, never by editing roles. The roles stay
-generic, so pointing the playbook at a new host is only an inventory and vault
-change - which is what makes migrating to new hardware a low-risk, repeatable
-operation.
+through `group_vars` and Ansible Vault, never by editing roles. Host facts that
+cannot be assumed are resolved at deploy time (the game pod runs as the *actual*
+uid of the steam user, looked up via `getent` - hardcoding uid 1000 is exactly
+the kind of assumption that once crash-looped a cutover).
 
 ## Secrets & Vault
 
@@ -124,30 +150,34 @@ The vault password is kept outside the repository. The encrypted `vault.yml`
 
 A single Grafana fronts both pillars:
 
-**Metrics** - `node_exporter` (incl. a systemd unit-state textfile collector) is
-scraped by Prometheus and visualised in Grafana. Provisioned dashboards:
+**Metrics** - `node_exporter` (incl. textfile collectors for systemd unit states
+and the game's own metrics) is scraped by Prometheus. Provisioned dashboards:
 
 - *Node Exporter Full* - host vitals.
-- *Insurgency: Sandstorm* - a custom dashboard correlating **players online**
-  against the **busiest CPU core**. The game server is single-threaded, so
-  average CPU hides saturation; the busiest-core view is what actually predicts
-  gameplay impact.
+- *Insurgency: Sandstorm* - the ops view of the game: current scenario
+  (map + side), players online, and the load of the **isolated game core** -
+  the one number that decides tick stability - plus a map-history timeline and
+  the live game log.
 
 **Logs** - Grafana Alloy tails the game log and the systemd journal and ships
 them to Loki (7-day retention, enforced by the compactor). Player names are kept
 in the log line but never as a label, to keep Loki's index cardinality bounded.
 
 **Alerting** - Grafana alert rules (provisioned as code) page a Telegram channel:
-busiest CPU core > 90% for 10 min, RAM > 90%, disk > 85%, and any monitored
-systemd service going inactive.
+busiest CPU core > 90%, RAM > 90%, disk > 85%, any monitored systemd unit going
+inactive, and a stale game-manager heartbeat (the sidecar can die while the game
+plays on - k8s only restarts the pod when the *game* stops answering RCON).
 
 ## Security
 
-- **UFW** default-deny with an explicit allow-list per role.
-- **fail2ban** (systemd backend) with SSH and nginx jails.
+- **UFW** default-deny with an explicit allow-list per role - plus the hard-won
+  caveat that kube-proxy NodePorts are NATed *around* the INPUT chain, so k3s
+  binds them to loopback only.
+- **fail2ban** (systemd backend) with SSH and nginx jails; the containerized
+  nginx keeps writing real files to `/var/log/nginx` for exactly this reason.
 - **SSH hardening** drop-in; key-only by default (production keeps password auth
   as a deliberate, fail2ban-covered fallback on a non-standard port).
-- **RCON is never exposed** - it binds loopback and is reached over an SSH
+- **RCON is never exposed** - it is reached over loopback (sidecar) or an SSH
   tunnel; the firewall never opens its port.
 
 ## Usage
@@ -158,16 +188,16 @@ cd ansible
 # Provision production (the only host, and the default target)
 ansible-playbook site.yml
 
-# Dry run - shows the diff, changes nothing
-ansible-playbook site.yml --check --diff
+# Dry run - shows what would change, including live-cluster manifest drift
+ansible-playbook site.yml --check
 
 # Re-apply just one slice (tagged roles)
 ansible-playbook site.yml --tags monitoring,logging
 ```
 
-Connection details live in the inventory and vault: the production IP
-(`vault_production_ip`), SSH port and key path are set in `hosts.yml`, so you
-only need the vault password to decrypt them at run time.
+Game-affecting note: the sandstorm role never restarts the running game. After
+changing game configs or `.env`, apply with a manual
+`kubectl -n sandstorm rollout restart deployment sandstorm` in a no-players window.
 
 ## Disaster recovery
 
@@ -184,5 +214,9 @@ to a new IP, use [docs/DEPLOY-CHECKLIST.md](docs/DEPLOY-CHECKLIST.md).
 - **Idempotent** - declare desired state, converge to it, re-run safely.
 - **Pinned versions** - reproducibility over freshness for every image and binary.
 - **One responsibility per role**, composed rather than monolithic.
+- **Ansible renders, Kubernetes runs** - manifests are code-reviewed Jinja2,
+  applied and drift-checked by the same tool that owns the rest of the host.
+- **The live game is sacred** - no automation may restart it; every
+  game-affecting action is manual, explicit, and scheduled around players.
 - **Secrets and host specifics out of the repo** - vault for values,
   `group_vars` for per-host configuration.

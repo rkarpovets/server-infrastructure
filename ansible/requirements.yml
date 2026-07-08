@@ -5,7 +5,5 @@
 collections:
   - name: community.general    # ufw, and other general-purpose modules
     version: "8.3.0"
-  - name: community.docker     # docker_compose_v2 for the logging stack (until its k3s migration)
-    version: "3.7.0"
   - name: kubernetes.core      # k8s module - applies rendered manifests to k3s
     version: "3.2.0"
