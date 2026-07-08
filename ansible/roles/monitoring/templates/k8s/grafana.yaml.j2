@@ -54,6 +54,7 @@ metadata:
   namespace: {{ monitoring_namespace }}
 data:
   iss.json: {{ lookup('file', 'dashboards/iss.json') | to_json }}
+  cpu-cores.json: {{ lookup('file', 'dashboards/cpu-cores.json') | to_json }}
   node-exporter-full.json: {{ lookup('file', 'dashboards/node-exporter-full.json') | to_json }}
 ---
 apiVersion: v1
