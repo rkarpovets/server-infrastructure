@@ -1,7 +1,39 @@
+# IPv4 only: the pod network has no routable IPv6, and hostPort (the path
+# traffic takes into this container) is IPv4 anyway.
 server {
+    listen 80 default_server;
+
+    # ACME http-01 challenges: certbot on the HOST renews with --webroot
+    # into this directory, mounted read-only into the pod.
+    location /.well-known/acme-challenge/ {
+        root {{ nginx_acme_webroot }};
+    }
+
+    location = /healthz {
+        access_log off;
+        return 200;
+    }
+
 {% if nginx_enable_tls %}
+    location / {
+        return 301 https://$host:{{ nginx_https_port }}$request_uri;
+    }
+{% else %}
+    # TLS off (lab without certificates): serve Grafana plain on :80.
+    location / {
+        proxy_pass http://{{ nginx_grafana_upstream }};
+        proxy_set_header Host            $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+{% endif %}
+}
+
+{% if nginx_enable_tls %}
+server {
     listen {{ nginx_https_port }} ssl;
-    listen [::]:{{ nginx_https_port }} ssl;
     server_name {{ nginx_server_name }};
 
     ssl_certificate     {{ nginx_tls_cert }};
@@ -9,10 +41,6 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
 
     add_header Strict-Transport-Security "max-age=31536000" always;
-{% else %}
-    listen 80;
-    server_name {{ nginx_server_name }};
-{% endif %}
     add_header X-Frame-Options SAMEORIGIN always;
     add_header X-Content-Type-Options nosniff always;
 
@@ -27,3 +55,4 @@ server {
         proxy_set_header Connection $connection_upgrade;
     }
 }
+{% endif %}

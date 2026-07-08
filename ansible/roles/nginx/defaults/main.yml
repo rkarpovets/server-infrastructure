@@ -2,7 +2,12 @@
 nginx_server_name: "_"
 nginx_enable_tls: false
 nginx_https_port: 443
-nginx_grafana_upstream: "127.0.0.1:3000"
+nginx_image: nginx:1.28-alpine
+# Grafana's in-cluster service DNS - nginx runs in the same namespace now,
+# so no NodePort hop is needed.
+nginx_grafana_upstream: "grafana:3000"
+# Webroot served on :80 for certbot's http-01 renewals (mounted into the pod).
+nginx_acme_webroot: /var/www/html
 nginx_tls_cert: "/etc/letsencrypt/live/{{ nginx_server_name }}/fullchain.pem"
 nginx_tls_key: "/etc/letsencrypt/live/{{ nginx_server_name }}/privkey.pem"
 # Path on the control node to a letsencrypt.tgz backup to restore on a fresh host.

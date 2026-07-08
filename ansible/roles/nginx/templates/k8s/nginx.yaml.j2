@@ -1,0 +1,91 @@
+# nginx in the monitoring namespace: it fronts Grafana, and plain service
+# DNS (grafana:3000) then works without the NodePort hop.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: {{ monitoring_namespace }}
+data:
+  # Mounted over /etc/nginx/conf.d, which also drops the image's default.conf
+  # (the k8s equivalent of "remove default site").
+  websocket_upgrade.conf: |
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+  grafana.conf: |
+{{ lookup('template', 'grafana.conf.j2') | indent(4, true) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: {{ monitoring_namespace }}
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  # hostPort makes rolling updates deadlock (the new pod cannot bind while
+  # the old one holds the port) - always stop the old pod first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+      annotations:
+        checksum/config: {{ lookup('template', 'grafana.conf.j2') | hash('sha256') }}
+    spec:
+      containers:
+        - name: nginx
+          image: {{ nginx_image }}
+          ports:
+            # hostPort instead of a Service: ServiceLB is disabled and these
+            # two ports are exactly what the host nginx used to own.
+            - containerPort: 80
+              hostPort: 80
+              name: http
+{% if nginx_enable_tls %}
+            - containerPort: {{ nginx_https_port }}
+              hostPort: {{ nginx_https_port }}
+              name: https
+{% endif %}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: webroot
+              mountPath: {{ nginx_acme_webroot }}
+              readOnly: true
+{% if nginx_enable_tls %}
+            - name: letsencrypt
+              mountPath: /etc/letsencrypt
+              readOnly: true
+{% endif %}
+            # Real files on the host (not the image's stdout symlinks):
+            # the fail2ban nginx jails keep reading /var/log/nginx/*.log.
+            - name: logs
+              mountPath: /var/log/nginx
+      volumes:
+        - name: conf
+          configMap:
+            name: nginx-conf
+        - name: webroot
+          hostPath:
+            path: {{ nginx_acme_webroot }}
+            type: Directory
+{% if nginx_enable_tls %}
+        - name: letsencrypt
+          hostPath:
+            path: /etc/letsencrypt
+            type: Directory
+{% endif %}
+        - name: logs
+          hostPath:
+            path: /var/log/nginx
+            type: DirectoryOrCreate

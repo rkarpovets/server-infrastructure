@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Overrides the nginx package's logrotate config: its postrotate signals the
+# HOST nginx pid, which no longer exists - the k3s nginx would keep writing
+# to the rotated file forever. copytruncate needs no signal at all.
+/var/log/nginx/*.log {
+        daily
+        missingok
+        rotate 14
+        compress
+        delaycompress
+        notifempty
+        copytruncate
+}
