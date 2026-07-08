@@ -1,9 +1,11 @@
 ---
-- name: Install nginx
-  ansible.builtin.apt:
-    name: nginx
-    state: present
-    update_cache: true
+# nginx now runs in k3s (hostPort 80/{{ nginx_https_port }}). Certbot stays on
+# the HOST: it renews over the webroot that the pod serves on :80, and its
+# renew hook rolls the pod to pick up the new certificate.
+#
+# Cutover note: the pod's hostPort is iptables DNAT (PREROUTING), so it takes
+# over traffic the moment the pod is ready even if the host nginx is still
+# listening - the manifests apply first, then the host service is retired.
 
 - name: Restore Let's Encrypt certificates from backup
   ansible.builtin.unarchive:
@@ -14,56 +16,62 @@
     - nginx_enable_tls | bool
     - nginx_letsencrypt_restore_path | length > 0
 
-- name: Remove nginx worker CPU pinning
-  ansible.builtin.lineinfile:
-    path: /etc/nginx/nginx.conf
-    regexp: '^\s*worker_cpu_affinity'
-    state: absent
-  # worker_cpu_affinity pins one worker per core, and an explicit affinity
-  # overrides isolcpus - a worker lands on the isolated game core. Without
-  # the pin the scheduler keeps all workers on the general-purpose cores.
-  notify:
-    - Validate nginx config
-    - Reload nginx
+- name: Check kubernetes python client presence
+  ansible.builtin.stat:
+    path: /usr/lib/python3/dist-packages/kubernetes
+  register: nginx_k8s_py
+  # Read-only query: run it even in --check so the guard below reflects the
+  # real host state.
+  check_mode: false
 
-- name: Remove default site
+- name: Deploy nginx to k3s
+  # Guard for --check on a host that never ran the apply: without the python
+  # client the k8s module errors instead of reporting drift.
+  when: not ansible_check_mode or nginx_k8s_py.stat.exists
+  kubernetes.core.k8s:
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    state: present
+    definition: "{{ lookup('template', 'k8s/nginx.yaml.j2') }}"
+
+- name: Stop and disable the host nginx (replaced by the k3s pod)
+  ansible.builtin.systemd:
+    name: nginx
+    state: stopped
+    enabled: false
+  # The nginx package (and its unit) does not exist on a freshly provisioned
+  # host - nothing to stop there.
+  failed_when: false
+
+- name: Remove legacy manual Grafana site (proxied the old compose Grafana)
   ansible.builtin.file:
-    path: /etc/nginx/sites-enabled/default
+    path: "{{ item }}"
     state: absent
-  notify: Reload nginx
+  loop:
+    - /etc/nginx/sites-enabled/grafana
+    - /etc/nginx/sites-available/grafana
 
-- name: Deploy websocket upgrade map
-  ansible.builtin.copy:
-    dest: /etc/nginx/conf.d/websocket_upgrade.conf
-    content: |
-      map $http_upgrade $connection_upgrade {
-          default upgrade;
-          ''      close;
-      }
-    mode: "0644"
-  notify: Reload nginx
-
-- name: Deploy Grafana reverse-proxy site
+- name: Override nginx logrotate config (containerized nginx needs no signal)
   ansible.builtin.template:
-    src: grafana.conf.j2
-    dest: /etc/nginx/sites-available/grafana.conf
+    src: logrotate-nginx.j2
+    dest: /etc/logrotate.d/nginx
     mode: "0644"
-  notify:
-    - Validate nginx config
-    - Reload nginx
 
-- name: Enable Grafana site
-  ansible.builtin.file:
-    src: /etc/nginx/sites-available/grafana.conf
-    dest: /etc/nginx/sites-enabled/grafana.conf
-    state: link
-  # In --check mode the deploy task above does not actually create
-  # grafana.conf, so the symlink source is absent; skip then (a real
-  # run creates the file first).
-  when: not ansible_check_mode
-  notify:
-    - Validate nginx config
-    - Reload nginx
+- name: Check for a certbot renewal config
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/renewal/{{ nginx_server_name }}.conf"
+  register: nginx_renewal_conf
+  check_mode: false
+
+- name: Point the certbot renew hook at the k3s nginx
+  ansible.builtin.lineinfile:
+    path: "/etc/letsencrypt/renewal/{{ nginx_server_name }}.conf"
+    regexp: '^renew_hook'
+    line: >-
+      renew_hook = /usr/local/bin/kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+      -n {{ monitoring_namespace }} rollout restart deployment nginx
+  when:
+    - nginx_enable_tls | bool
+    - nginx_renewal_conf.stat.exists
 
 - name: Allow HTTP through ufw
   no_log: true
@@ -81,9 +89,3 @@
     proto: tcp
     comment: "HTTPS nginx"
   when: nginx_enable_tls | bool
-
-- name: Ensure nginx is enabled and running
-  ansible.builtin.service:
-    name: nginx
-    state: started
-    enabled: true

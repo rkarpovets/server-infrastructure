@@ -6,3 +6,9 @@ disable:
   - traefik
   - servicelb
 write-kubeconfig-mode: "0600"
+# NodePorts must NOT be internet-reachable: kube-proxy programs them via
+# iptables NAT (PREROUTING), which bypasses ufw's INPUT chain entirely, so
+# "ufw default deny" does not cover them. Bind them to loopback only -
+# host-local access (nginx proxy, SSH tunnels) keeps working.
+kube-proxy-arg:
+  - nodeport-addresses=127.0.0.1/32
