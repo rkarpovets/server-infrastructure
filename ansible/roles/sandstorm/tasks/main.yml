@@ -264,6 +264,14 @@
     - sandstorm-server.service
     - sandstorm-manager.service
 
+# The pod must run as the REAL uid/gid of the steam user on THIS host - it is
+# not guaranteed to be 1000 (here ubuntu owns 1000 and steam got 1001, which
+# made a hardcoded runAsUser: 1000 crash-loop on EACCES at first cutover).
+- name: Resolve the steam user's uid and gid
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ sandstorm_user }}"
+
 - name: Check kubernetes python client presence
   ansible.builtin.stat:
     path: /usr/lib/python3/dist-packages/kubernetes

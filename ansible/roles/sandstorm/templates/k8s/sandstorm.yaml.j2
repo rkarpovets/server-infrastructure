@@ -39,9 +39,12 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       securityContext:
-        # The whole /home/steam tree is a hostPath owned by steam (1000).
-        runAsUser: 1000
-        runAsGroup: 1000
+        # The whole /home/steam tree is a hostPath owned by steam. The uid is
+        # resolved from the host at deploy time (getent in the role tasks) -
+        # NOT hardcoded: on this host steam is 1001, not the 1000 the
+        # migration plan assumed.
+        runAsUser: {{ getent_passwd[sandstorm_user][1] }}
+        runAsGroup: {{ getent_passwd[sandstorm_user][2] }}
       terminationGracePeriodSeconds: 60
       containers:
         - name: game
