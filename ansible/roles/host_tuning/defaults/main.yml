@@ -9,3 +9,8 @@ host_tuning_isolated_cpu: 3
 # /proc/irq/*/smp_affinity. Cores 0-2 -> binary 0111 -> "7".
 # Must be kept in sync with host_tuning_isolated_cpu.
 host_tuning_irq_affinity_mask: "7"
+
+# The NON-isolated cores as a cpulist - where non-latency-critical work
+# evicted from the isolated core goes (e.g. the game's ModioBackground
+# thread). Must be kept in sync with host_tuning_isolated_cpu.
+host_tuning_general_cpus: "0-2"

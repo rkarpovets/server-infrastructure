@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Periodically evict ModioBackground from the isolated game core
+
+[Timer]
+# Every minute: cheap (one pgrep when the game is down), catches both the
+# thread appearing ~20s after game start and any later game restart.
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

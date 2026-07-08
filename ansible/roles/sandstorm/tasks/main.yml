@@ -259,3 +259,27 @@
   loop:
     - sandstorm-server.service
     - sandstorm-manager.service
+
+# --- ModioBackground eviction (no notify on purpose: never restart the game) ---
+- name: Deploy ModioBackground affinity script
+  ansible.builtin.template:
+    src: modio-affinity.sh.j2
+    dest: /usr/local/bin/modio-affinity.sh
+    mode: "0755"
+
+- name: Deploy ModioBackground affinity service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - modio-affinity.service
+    - modio-affinity.timer
+
+- name: Enable and start ModioBackground affinity timer
+  ansible.builtin.systemd:
+    name: modio-affinity.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: sandstorm_install_server | bool

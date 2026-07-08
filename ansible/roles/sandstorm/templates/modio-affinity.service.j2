@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Evict the ModioBackground thread from the isolated game core
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/modio-affinity.sh
