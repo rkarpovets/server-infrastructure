@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: {{ monitoring_namespace }}
+data:
+  config.alloy: |
+{{ lookup('template', 'config.alloy.j2') | indent(4, true) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alloy-data
+  namespace: {{ monitoring_namespace }}
+spec:
+  storageClassName: local-path
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ alloy_pvc_size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy
+  namespace: {{ monitoring_namespace }}
+  labels:
+    app: alloy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+      annotations:
+        checksum/config: {{ lookup('template', 'config.alloy.j2') | hash('sha256') }}
+    spec:
+      # Runs as root (image default) - required to read the journal files.
+      containers:
+        - name: alloy
+          image: {{ alloy_image }}
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/var/lib/alloy/data
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/alloy/data
+{% if logging_collect_iss %}
+            # The game LOG DIRECTORY, not the file: the game recreates
+            # Insurgency.log (new inode) on restart, and a file bind-mount
+            # would keep tailing the stale old inode forever.
+            - name: iss-logs
+              mountPath: /logs
+              readOnly: true
+{% endif %}
+            - name: journal
+              mountPath: /var/log/journal
+              readOnly: true
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: alloy-data
+{% if logging_collect_iss %}
+        - name: iss-logs
+          hostPath:
+            path: {{ iss_log_path | dirname }}
+            type: Directory
+{% endif %}
+        - name: journal
+          hostPath:
+            path: /var/log/journal
+            type: Directory
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+            type: File
