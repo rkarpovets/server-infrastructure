@@ -61,6 +61,11 @@ jobs:
           # No --diff on purpose: it renders templated secrets (e.g. the
           # Grafana password) into the public CI log. --check reports changed
           # vs not; run --check --diff locally to inspect the actual changes.
+          #
+          # k8s drift is covered by the same run: kubernetes.core.k8s in
+          # check mode compares the rendered manifests against the live
+          # cluster objects and reports changed - no separate kubectl diff
+          # step is needed.
           ansible-playbook site.yml -e target_hosts=production \
             --check --skip-tags install 2>&1 | tee "$RUNNER_TEMP/check.log"
 

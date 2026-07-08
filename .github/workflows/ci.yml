@@ -46,3 +46,16 @@ jobs:
       #    treats the encrypted vault as opaque, so no vault password is needed.
       - name: ansible-lint
         run: ansible-lint
+
+      # 3. k8s manifests: render the final YAML with dummy secrets and
+      #    validate it against the Kubernetes schemas, so a broken template
+      #    fails the PR instead of the deploy. jinja2/pyyaml already come
+      #    with ansible-core above.
+      - name: Render k8s manifests
+        run: python3 scripts/render-k8s-manifests.py "$RUNNER_TEMP/rendered"
+
+      - name: Validate k8s manifests
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/kubeconform" -strict -summary "$RUNNER_TEMP/rendered"
