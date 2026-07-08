@@ -23,10 +23,13 @@ grafana_root_url: "https://{{ nginx_server_name }}:{{ nginx_https_port }}/"
 xray_panel_port: "{{ vault_xray_panel_port }}"
 xray_inbound_ports: "{{ vault_xray_inbound_ports }}"
 
-# Service-down alerts cover these systemd units on prod.
+# The game runs in k3s (game + RCON-manager sidecar in one pod). The systemd
+# unit files stay on disk as the instant rollback path.
+sandstorm_runtime: k3s
+
+# Service-down alerts cover these systemd units on prod. nginx and the two
+# sandstorm units moved into k3s (k8s liveness/restart policy watches them
+# there) - keeping them here would fire a permanent false "down" alert.
 monitoring_alert_units:
-  - nginx
   - docker
   - x-ui
-  - sandstorm-server
-  - sandstorm-manager
