@@ -6,10 +6,17 @@ playbook reproduces all software and configuration; this runbook covers the
 
 ## What the playbook reproduces automatically
 
-`common`, `security` (UFW + fail2ban + SSH hardening), `docker`, `monitoring`
-(Prometheus + Grafana + node_exporter, dashboards, Telegram + service-down alerts),
-`logging` (Loki + Alloy log aggregation), `nginx` reverse proxy, native
-`xray` / 3x-ui, and the `sandstorm` game server (steamcmd + configs + mods).
+`common`, `security` (UFW + fail2ban + SSH hardening), `host_tuning` (CPU-core
+isolation for the game), `k3s` (the container runtime for everything below),
+`monitoring` (Prometheus + Grafana + node_exporter, dashboards, Telegram +
+service-down alerts), `logging` (Loki + Alloy log aggregation), `nginx` reverse
+proxy, native `xray` / 3x-ui, and the `sandstorm` game server (steamcmd +
+configs + mods + the game pod with its RCON-manager sidecar).
+
+> **Fresh host needs ONE reboot** after the first playbook run: the CPU
+> isolation (`isolcpus` in GRUB, written by `host_tuning`) only takes effect on
+> boot. Everything runs fine before the reboot - the game core just is not
+> isolated yet. Verify after reboot: `cat /sys/devices/system/cpu/isolated`.
 
 The playbook runs from a **control node** (your workstation / WSL, or the CI
 runner) and pushes over SSH. The target server never holds the playbook or the
@@ -99,11 +106,14 @@ restores the certs only if they are missing. Re-runs are safe and idempotent.
 
 ### 5. Verify
 ```bash
-ssh -p <ssh_port> ubuntu@<NEW_IP> 'systemctl is-active x-ui nginx sandstorm-server sandstorm-manager'
-ssh -p <ssh_port> ubuntu@<NEW_IP> 'sudo docker ps'   # grafana, prometheus, node_exporter, loki, alloy Up
+ssh -p <ssh_port> ubuntu@<NEW_IP> 'systemctl is-active x-ui k3s'
+ssh -p <ssh_port> ubuntu@<NEW_IP> 'kubectl get pods -A'
+# expect Running: nginx, grafana, prometheus, node-exporter, loki, alloy
+# (monitoring ns) and the sandstorm pod 2/2 (game + manager sidecar)
 ```
-Open your Grafana domain over HTTPS, check the 3x-ui panel for your inbounds, and
-confirm a Telegram test alert fires.
+Open your Grafana domain over HTTPS, check the 3x-ui panel for your inbounds,
+confirm a Telegram test alert fires, and check the server appears in the
+in-game browser (or query it: A2S on the query port).
 
 ## Verifying the playbook matches the current prod (before trusting it)
 

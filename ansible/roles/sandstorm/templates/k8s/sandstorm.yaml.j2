@@ -6,11 +6,6 @@ metadata:
 # The game pod. Two containers (game + RCON manager sidecar), NO
 # shareProcessNamespace: the manager talks to the game exclusively over RCON.
 #
-# Runtime is gated by sandstorm_runtime: with "systemd" the Deployment exists
-# with replicas 0 (dormant, mergeable ahead of the cutover); flipping the var
-# to "k3s" scales it to 1 and retires the systemd units. hostNetwork means
-# both can never run at once - the UDP ports collide.
-#
 # Nothing here auto-restarts the game (no config checksum annotations on
 # purpose): a game restart kicks live players, so applying config/.env
 # changes is always a manual `kubectl -n {{ sandstorm_namespace }} rollout
@@ -23,7 +18,7 @@ metadata:
   labels:
     app: sandstorm
 spec:
-  replicas: {{ 1 if sandstorm_runtime == 'k3s' else 0 }}
+  replicas: 1
   strategy:
     type: Recreate
   selector:

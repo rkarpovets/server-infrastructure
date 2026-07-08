@@ -1,7 +1,7 @@
 ---
 - name: Install steamcmd dependencies
   ansible.builtin.apt:
-    name: [lib32gcc-s1, ca-certificates, tar, unzip, python3-venv, acl]
+    name: [lib32gcc-s1, ca-certificates, tar, unzip, acl]
     state: present
     update_cache: true
 
@@ -100,6 +100,10 @@
     - { src: "server.sh", dest: "server.sh", mode: "0755" }
     - { src: "servermanager.py", dest: "servermanager.py", mode: "0755" }
 
+# No notify anywhere below on purpose: nothing may auto-restart the live
+# game. Config/.env changes are applied with a MANUAL
+# `kubectl -n sandstorm rollout restart deployment sandstorm`
+# in a no-players window.
 - name: Deploy Mods.txt (from sandstorm_mods)
   ansible.builtin.template:
     src: Mods.txt.j2
@@ -107,15 +111,6 @@
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0664"
-  notify: Restart sandstorm-server
-
-- name: Install servermanager Python deps in venv
-  tags: install
-  ansible.builtin.pip:
-    requirements: "{{ sandstorm_home }}/iss-config-src/requirements.txt"
-    virtualenv: "{{ sandstorm_home }}/venv"
-    virtualenv_command: python3 -m venv
-  become_user: "{{ sandstorm_user }}"
 
 - name: Deploy .env (secrets from vault)
   ansible.builtin.template:
@@ -124,7 +119,6 @@
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0600"
-  notify: Restart sandstorm-manager
 
 # The manager (running as the unprivileged game user) writes the player-count
 # metric into node_exporter's textfile dir, which the monitoring role owns as
@@ -136,18 +130,13 @@
   changed_when: false
   when: sandstorm_metrics_file | length > 0
 
-- name: Deploy systemd unit files
-  ansible.builtin.template:
-    src: "{{ item }}.j2"
-    dest: "/etc/systemd/system/{{ item }}"
-    mode: "0644"
+- name: Remove the legacy systemd units (the game runs in k3s now)
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
   loop:
     - sandstorm-server.service
     - sandstorm-manager.service
-  notify:
-    - Reload systemd
-    - Restart sandstorm-server
-    - Restart sandstorm-manager
 
 - name: Allow sandstorm ports through ufw
   no_log: true
@@ -184,7 +173,6 @@
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0664"
-  notify: Restart sandstorm-server
 
 - name: Create per-mod cache directories
   ansible.builtin.file:
@@ -209,7 +197,6 @@
   loop: "{{ sandstorm_mods }}"
   loop_control:
     label: "{{ item.id }}"
-  notify: Restart sandstorm-server
 
 - name: Create mod.io ModServer directory
   ansible.builtin.file:
@@ -226,7 +213,6 @@
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0600"
-  notify: Restart sandstorm-server
 
 - name: Create mod symlink directories
   ansible.builtin.file:
@@ -248,21 +234,6 @@
   loop: "{{ sandstorm_mods }}"
   loop_control:
     label: "{{ item.id }}"
-  notify: Restart sandstorm-server
-
-# Runtime switch: with "systemd" the units run and the k8s Deployment stays
-# at replicas 0; with "k3s" the units are retired (files stay on disk as the
-# instant rollback path) and the pod takes over. Flipping the var is the
-# cutover - a deliberate one-line change, deployed in a no-players window.
-- name: Configure Sandstorm services
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    enabled: "{{ (sandstorm_install_server | bool) and sandstorm_runtime == 'systemd' }}"
-    state: "{{ 'started' if (sandstorm_install_server | bool and sandstorm_runtime == 'systemd') else 'stopped' }}"
-    daemon_reload: true
-  loop:
-    - sandstorm-server.service
-    - sandstorm-manager.service
 
 # The pod must run as the REAL uid/gid of the steam user on THIS host - it is
 # not guaranteed to be 1000 (here ubuntu owns 1000 and steam got 1001, which

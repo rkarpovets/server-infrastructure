@@ -91,6 +91,37 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [85] }
+      - uid: game_manager_stale
+        title: Game manager metric is stale
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels: { severity: critical }
+        annotations: { summary: "iss_players.prom not rewritten for 10+ minutes - the RCON manager sidecar is likely dead while the game keeps running" }
+        isPaused: false
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              datasource: { type: prometheus, uid: prometheus }
+              # The manager heartbeats the textfile every poll (~20s), so a
+              # frozen mtime means the sidecar died - k8s only restarts the
+              # pod when the GAME stops answering RCON, not the sidecar.
+              expr: time() - node_textfile_mtime_seconds{file=~".*iss_players.prom"}
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [600] }
       - uid: service_down
         title: Service is down
         condition: C
