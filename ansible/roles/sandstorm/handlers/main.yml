@@ -3,14 +3,18 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
+# Both restart handlers are systemd-mode only: after the k3s cutover a
+# "restart" of a disabled unit would START it next to the pod and the two
+# would fight over the UDP ports. In k3s mode config/.env changes are applied
+# by a MANUAL pod rollout in a no-players window instead.
 - name: Restart sandstorm-server
   ansible.builtin.systemd:
     name: sandstorm-server.service
     state: restarted
-  when: sandstorm_install_server | bool
+  when: sandstorm_install_server | bool and sandstorm_runtime == 'systemd'
 
 - name: Restart sandstorm-manager
   ansible.builtin.systemd:
     name: sandstorm-manager.service
     state: restarted
-  when: sandstorm_install_server | bool
+  when: sandstorm_install_server | bool and sandstorm_runtime == 'systemd'

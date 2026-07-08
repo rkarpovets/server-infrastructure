@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ sandstorm_namespace }}
+---
+# The game pod. Two containers (game + RCON manager sidecar), NO
+# shareProcessNamespace: the manager talks to the game exclusively over RCON.
+#
+# Runtime is gated by sandstorm_runtime: with "systemd" the Deployment exists
+# with replicas 0 (dormant, mergeable ahead of the cutover); flipping the var
+# to "k3s" scales it to 1 and retires the systemd units. hostNetwork means
+# both can never run at once - the UDP ports collide.
+#
+# Nothing here auto-restarts the game (no config checksum annotations on
+# purpose): a game restart kicks live players, so applying config/.env
+# changes is always a manual `kubectl -n {{ sandstorm_namespace }} rollout
+# restart deployment sandstorm` in a no-players window.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandstorm
+  namespace: {{ sandstorm_namespace }}
+  labels:
+    app: sandstorm
+spec:
+  replicas: {{ 1 if sandstorm_runtime == 'k3s' else 0 }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sandstorm
+  template:
+    metadata:
+      labels:
+        app: sandstorm
+    spec:
+      # Same network position as the systemd unit had: UDP game/query ports
+      # on the host, RCON on loopback shared with the sidecar.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        # The whole /home/steam tree is a hostPath owned by steam (1000).
+        runAsUser: 1000
+        runAsGroup: 1000
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: game
+          image: {{ sandstorm_game_image }}
+          workingDir: {{ sandstorm_install_dir }}
+          # taskset pins the whole process onto the isolated core; the
+          # host-side modio-affinity timer then evicts the hot
+          # ModioBackground thread back to the general cores (it can see and
+          # re-pin container threads through the host /proc).
+          command:
+            - /bin/bash
+            - -c
+            - exec taskset -c {{ host_tuning_isolated_cpu }} ./server.sh
+          # Second line of defense (the manager heals what RCON can reach):
+          # if the game hangs so hard that even RCON stops answering, k8s
+          # restarts the pod.
+          livenessProbe:
+            tcpSocket:
+              port: {{ sandstorm_rcon_port }}
+            # Mods + first map load take minutes - do not shoot early.
+            initialDelaySeconds: 240
+            periodSeconds: 20
+            failureThreshold: 9
+          volumeMounts:
+            - name: steam-home
+              mountPath: {{ sandstorm_home }}
+        - name: manager
+          image: {{ sandstorm_manager_image }}
+          workingDir: {{ sandstorm_home }}/sandstorm_server
+          # Deps land in an ephemeral dir, not the host home - the host venv
+          # was built for the host python and is not reused here.
+          command:
+            - /bin/sh
+            - -c
+            - >-
+              pip install --no-cache-dir --quiet
+              --target /tmp/pydeps
+              -r {{ sandstorm_home }}/iss-config-src/requirements.txt
+              && exec python3 servermanager.py
+          env:
+            - name: PYTHONPATH
+              value: /tmp/pydeps
+          volumeMounts:
+            - name: steam-home
+              mountPath: {{ sandstorm_home }}
+            - name: textfile
+              mountPath: {{ monitoring_textfile_dir }}
+      volumes:
+        # One mount, full parity: game install, mod.io tree, .env, config
+        # repo clone and the ~/sandstorm_server symlink all live here and
+        # keep their exact systemd-era paths.
+        - name: steam-home
+          hostPath:
+            path: {{ sandstorm_home }}
+            type: Directory
+        - name: textfile
+          hostPath:
+            path: {{ monitoring_textfile_dir }}
+            type: Directory
