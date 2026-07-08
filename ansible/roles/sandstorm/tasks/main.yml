@@ -250,15 +250,36 @@
     label: "{{ item.id }}"
   notify: Restart sandstorm-server
 
+# Runtime switch: with "systemd" the units run and the k8s Deployment stays
+# at replicas 0; with "k3s" the units are retired (files stay on disk as the
+# instant rollback path) and the pod takes over. Flipping the var is the
+# cutover - a deliberate one-line change, deployed in a no-players window.
 - name: Configure Sandstorm services
   ansible.builtin.systemd:
     name: "{{ item }}"
-    enabled: "{{ sandstorm_install_server | bool }}"
-    state: "{{ 'started' if sandstorm_install_server | bool else 'stopped' }}"
+    enabled: "{{ (sandstorm_install_server | bool) and sandstorm_runtime == 'systemd' }}"
+    state: "{{ 'started' if (sandstorm_install_server | bool and sandstorm_runtime == 'systemd') else 'stopped' }}"
     daemon_reload: true
   loop:
     - sandstorm-server.service
     - sandstorm-manager.service
+
+- name: Check kubernetes python client presence
+  ansible.builtin.stat:
+    path: /usr/lib/python3/dist-packages/kubernetes
+  register: sandstorm_k8s_py
+  # Read-only query: run it even in --check so the guard below reflects the
+  # real host state.
+  check_mode: false
+
+- name: Deploy sandstorm manifests to k3s
+  # Guard for --check on a host that never ran the apply: without the python
+  # client the k8s module errors instead of reporting drift.
+  when: not ansible_check_mode or sandstorm_k8s_py.stat.exists
+  kubernetes.core.k8s:
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    state: present
+    definition: "{{ lookup('template', 'k8s/sandstorm.yaml.j2') }}"
 
 # --- ModioBackground eviction (no notify on purpose: never restart the game) ---
 - name: Deploy ModioBackground affinity script

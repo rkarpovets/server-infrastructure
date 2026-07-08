@@ -10,6 +10,17 @@ sandstorm_install_dir: "{{ sandstorm_steam_root }}/steamapps/common/sandstorm_se
 sandstorm_steam_app_id: 581330
 sandstorm_install_server: true
 
+# Where the game runs: "systemd" (units, current state) or "k3s" (pod with a
+# game + RCON-manager sidecar). Flipping this to "k3s" IS the cutover: the
+# systemd units stop and the pod scales 0 -> 1. hostNetwork means the two can
+# never coexist. Deploy the flip only in a no-players window.
+sandstorm_runtime: systemd
+sandstorm_namespace: sandstorm
+# No pinned tag published for this image (rolling only) - the exception to
+# the pin-everything rule, documented here on purpose.
+sandstorm_game_image: cm2network/steamcmd:latest
+sandstorm_manager_image: python:3.12-slim
+
 sandstorm_config_repo: https://github.com/rkarpovets/insurgency-sandstorm-server.git
 sandstorm_config_version: main
 
