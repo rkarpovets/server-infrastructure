@@ -14,7 +14,6 @@ x-ui.db
 *.key
 *.crt
 *.p12
-infra-state*/
 
 # SSH keys - never let a private key slip into the repo
 id_rsa*

@@ -9,8 +9,10 @@ the full runbook (backups, restore paths, rationale) is in
 
 ## A. On the OLD server (while it's still up)
 
-- [ ] Back up state: `x-ui.db` + Let's Encrypt certs via `scripts/backup-state.sh`,
-      then pull `~/infra-state` back to the control node.
+- [ ] Get state from the R2 backup. If the old host is still up, trigger a fresh
+      snapshot first: `ssh -p <port> <user>@<OLD_IP> 'sudo systemctl start restic-backup.service'`.
+      Then restore `x-ui.db` + certs onto the control node per [BACKUP.md](BACKUP.md)
+      (you get `/tmp/restore/var/lib/restic-backup/x-ui.db` and `~/letsencrypt.tgz`).
 - [ ] Confirm `~/.ansible_vault_pass` is stored off-repo.
 
 ## B. On the NEW server
@@ -53,8 +55,8 @@ the full runbook (backups, restore paths, rationale) is in
       ```bash
       cd ansible
       ansible-playbook site.yml \
-        -e xray_db_restore_path=~/infra-state/x-ui.db \
-        -e nginx_letsencrypt_restore_path=~/infra-state/letsencrypt.tgz
+        -e xray_db_restore_path=/tmp/restore/var/lib/restic-backup/x-ui.db \
+        -e nginx_letsencrypt_restore_path=~/letsencrypt.tgz
       ```
 
 ## ! Main gotcha - SSH port on the FIRST run
