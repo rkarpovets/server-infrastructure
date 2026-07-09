@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily off-site restic backup
+
+[Timer]
+OnCalendar={{ backup_on_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

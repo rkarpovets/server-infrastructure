@@ -1,0 +1,9 @@
+[Unit]
+Description=Off-site restic backup of stateful data (3x-ui DB, TLS certs) to Cloudflare R2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ backup_env_file }}
+ExecStart=/usr/local/bin/restic-backup.sh

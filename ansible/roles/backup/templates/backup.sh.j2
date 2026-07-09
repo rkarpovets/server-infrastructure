@@ -1,0 +1,44 @@
+#!/bin/bash
+# Scheduled off-site backup of the stateful data the playbook does NOT generate
+# from code: the 3x-ui VPN database and the Let's Encrypt certificates. restic
+# encrypts everything client-side (AES-256) before it reaches Cloudflare R2, so
+# the remote store only ever holds ciphertext. Managed by the `backup` Ansible
+# role - do not edit on the host. Credentials come from the systemd unit's
+# EnvironmentFile, never from the argument list.
+set -euo pipefail
+
+staging="{{ backup_staging_dir }}"
+rm -rf "${staging:?}"/*
+
+# Consistent snapshot of the live SQLite DB - a plain cp can capture a torn
+# write while 3x-ui is mid-transaction.
+if [ -f "{{ backup_xui_db }}" ]; then
+    sqlite3 "{{ backup_xui_db }}" ".backup '$staging/x-ui.db'"
+fi
+
+# First run against a fresh bucket creates the repo; idempotent afterwards.
+restic snapshots >/dev/null 2>&1 || restic init
+
+restic backup --tag scheduled "$staging" "{{ backup_letsencrypt_dir }}"
+
+restic forget --tag scheduled \
+    --keep-daily {{ backup_keep_daily }} \
+    --keep-weekly {{ backup_keep_weekly }} \
+    --prune
+
+# Structural integrity check of the remote repo (no data egress).
+restic check
+
+# Wipe the plaintext staging copy of the VPN DB.
+rm -rf "${staging:?}"/*
+
+# Heartbeat: reached only on full success. Atomic write into the node_exporter
+# textfile dir - a frozen mtime is what the `backup_stale` alert watches.
+out="{{ monitoring_textfile_dir }}/backup.prom"
+tmp="${out}.$$"
+{
+    echo "# HELP infra_backup_last_success_timestamp_seconds Unix time of the last successful restic backup."
+    echo "# TYPE infra_backup_last_success_timestamp_seconds gauge"
+    echo "infra_backup_last_success_timestamp_seconds $(date +%s)"
+} > "$tmp"
+mv "$tmp" "$out"

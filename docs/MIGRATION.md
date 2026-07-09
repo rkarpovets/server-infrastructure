@@ -26,8 +26,8 @@ vault password - it is a dumb target.
 
 | Item | Why | How |
 |------|-----|-----|
-| `x-ui.db` | VPN inbounds, users, Reality keys, panel login | `backup-state.sh` -> `xray_db_restore_path` |
-| Let's Encrypt certs | nginx TLS won't start without them | `backup-state.sh` -> `nginx_letsencrypt_restore_path` (or re-run certbot) |
+| `x-ui.db` | VPN inbounds, users, Reality keys, panel login | restore from the R2 backup -> `xray_db_restore_path` |
+| Let's Encrypt certs | nginx TLS won't start without them | restore from the R2 backup -> `nginx_letsencrypt_restore_path` (or re-run certbot) |
 | DNS record | the domain (`vault_nginx_server_name`) must point at the new IP | manual, at your DNS provider |
 | Vault password | needed to decrypt secrets | keep `~/.ansible_vault_pass` backed up off-repo |
 
@@ -36,18 +36,26 @@ Not carried (acceptable to lose): Prometheus metric history, Grafana volume
 
 ## Procedure
 
-### 1. On the OLD server - back up state
+### 1. Get the stateful data from the off-site backup
 
-`backup-state.sh` lives in this repo on the control node, not on the server
-(Ansible is push-based; the target never has the playbook). So copy the script
-over, run it, then pull the result back:
-```bash
-# from the control node - adjust port / user / IP to your inventory:
-scp -P <ssh_port> scripts/backup-state.sh <user>@<OLD_IP>:/tmp/backup-state.sh
-ssh -p <ssh_port> <user>@<OLD_IP> 'sudo bash /tmp/backup-state.sh /tmp/infra-state'
-scp -r -P <ssh_port> <user>@<OLD_IP>:/tmp/infra-state ~/infra-state
+The non-reproducible state (`x-ui.db`, TLS certs) is backed up to Cloudflare R2 by
+the `backup` role. Recover it from there — one mechanism covers both cases:
+
+- **Old host still reachable** (planned migration): trigger a fresh backup first so
+  R2 holds the very latest state:
+  ```bash
+  ssh -p <ssh_port> <user>@<OLD_IP> 'sudo systemctl start restic-backup.service'
+  ```
+- **Old host gone** (the disaster-recovery case this whole setup insures against):
+  nothing to trigger — the last scheduled snapshot is already in R2.
+
+Then restore the files onto the control node and re-pack the certs, following
+[BACKUP.md](BACKUP.md#restore-new-host-or-recovery). You end up with:
+```text
+/tmp/restore/var/lib/restic-backup/x-ui.db   # -> xray_db_restore_path
+~/letsencrypt.tgz                            # -> nginx_letsencrypt_restore_path
 ```
-Also copy `~/.ansible_vault_pass` somewhere safe and off-repo (a password manager).
+Also keep `~/.ansible_vault_pass` backed up off-repo (a password manager).
 
 ### 2. On the NEW server - bootstrap access
 
@@ -81,8 +89,8 @@ restore happens:
 ```bash
 cd ansible
 ansible-playbook site.yml \
-  -e xray_db_restore_path=~/infra-state/x-ui.db \
-  -e nginx_letsencrypt_restore_path=~/infra-state/letsencrypt.tgz
+  -e xray_db_restore_path=/tmp/restore/var/lib/restic-backup/x-ui.db \
+  -e nginx_letsencrypt_restore_path=~/letsencrypt.tgz
 ```
 The xray role restores `x-ui.db` only if no DB exists yet (one-time), and nginx
 restores the certs only if they are missing. Re-runs are safe and idempotent.

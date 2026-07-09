@@ -23,6 +23,13 @@ grafana_root_url: "https://{{ nginx_server_name }}:{{ nginx_https_port }}/"
 xray_panel_port: "{{ vault_xray_panel_port }}"
 xray_inbound_ports: "{{ vault_xray_inbound_ports }}"
 
+# Off-site backup (restic -> Cloudflare R2, S3-compatible). Endpoint and bucket
+# live in the vault so the public repo never reveals the live storage target.
+# Setting the bucket enables the backup role; lab hosts leave it empty and skip
+# the role entirely.
+backup_s3_endpoint: "{{ vault_backup_s3_endpoint }}"
+backup_s3_bucket: "{{ vault_backup_s3_bucket }}"
+
 # Service-down alerts cover these systemd units on prod. Everything else
 # runs in k3s and is watched by k8s liveness/restart policy.
 monitoring_alert_units:

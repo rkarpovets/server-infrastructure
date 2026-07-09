@@ -97,9 +97,10 @@ is a decision, not an accident.
 | `nginx`       | nginx Deployment on hostPort 80/TLS: fronts Grafana, serves ACME webroot renewals, keeps file logs for the fail2ban jails |
 | `xray`        | Native 3x-ui install (pinned binary + systemd), one-time DB restore |
 | `sandstorm`   | steamcmd dedicated server + mod.io mods on the host filesystem, game configs, and the two-container game pod (game + RCON-manager sidecar) |
+| `backup`      | Daily restic backup of the non-reproducible state (3x-ui VPN DB, TLS certs) to Cloudflare R2, client-side encrypted; systemd timer + a heartbeat metric that drives a stale-backup alert |
 
 Applied in dependency order by `site.yml`: `common -> security -> host_tuning ->
-k3s -> monitoring -> logging -> nginx -> xray -> sandstorm`.
+k3s -> monitoring -> logging -> nginx -> xray -> sandstorm -> backup`.
 
 ## Repository layout
 
@@ -119,8 +120,9 @@ ansible/
 docs/MIGRATION.md                  # disaster-recovery / new-host runbook
 docs/DEPLOY-CHECKLIST.md           # pre-flight checklist for a new-IP deploy
 scripts/render-k8s-manifests.py    # CI: render manifests with dummy secrets for kubeconform
-scripts/backup-state.sh            # backs up stateful data the playbook does not manage
 ```
+
+Backups: see [docs/BACKUP.md](docs/BACKUP.md) for the restic/R2 setup and the restore runbook.
 
 ## Configuration and host specifics
 
@@ -203,9 +205,10 @@ changing game configs or `.env`, apply with a manual
 
 The repo is the source of truth for *configuration* only. Stateful data - the
 VPN database, TLS certificates, game saves, metric history - is **not** in the
-repo. `scripts/backup-state.sh` captures the non-reproducible pieces (the 3x-ui
-database and Let's Encrypt certificates) so they can be restored on a fresh host
-through role variables. The full new-host runbook is in
+repo. The `backup` role backs up the non-reproducible pieces (the 3x-ui database
+and Let's Encrypt certificates) off-site to Cloudflare R2, client-side encrypted,
+so they can be restored on a fresh host through role variables - see
+[docs/BACKUP.md](docs/BACKUP.md). The full new-host runbook is in
 [docs/MIGRATION.md](docs/MIGRATION.md); for a quick pre-flight before deploying
 to a new IP, use [docs/DEPLOY-CHECKLIST.md](docs/DEPLOY-CHECKLIST.md).
 
