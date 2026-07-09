@@ -16,3 +16,6 @@
     - nginx
     - xray
     - sandstorm
+    - role: backup
+      tags: [backup]
+      when: backup_s3_bucket | length > 0

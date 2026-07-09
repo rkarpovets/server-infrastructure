@@ -1,0 +1,60 @@
+---
+- name: Install restic and sqlite3
+  tags: install
+  ansible.builtin.apt:
+    name:
+      - restic
+      - sqlite3
+    state: present
+    update_cache: true
+
+- name: Create backup config directory
+  ansible.builtin.file:
+    path: "{{ backup_env_file | dirname }}"
+    state: directory
+    mode: "0700"
+
+- name: Create backup staging directory
+  ansible.builtin.file:
+    path: "{{ backup_staging_dir }}"
+    state: directory
+    mode: "0700"
+
+# Holds the R2 keys and the restic repo password. Root-only, and loaded by the
+# systemd unit via EnvironmentFile so the secrets never appear in the process
+# argument list or the journal.
+- name: Deploy restic credentials
+  no_log: true
+  ansible.builtin.template:
+    src: restic.env.j2
+    dest: "{{ backup_env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: /usr/local/bin/restic-backup.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy backup systemd service
+  ansible.builtin.template:
+    src: restic-backup.service.j2
+    dest: /etc/systemd/system/restic-backup.service
+    mode: "0644"
+
+- name: Deploy backup systemd timer
+  ansible.builtin.template:
+    src: restic-backup.timer.j2
+    dest: /etc/systemd/system/restic-backup.timer
+    mode: "0644"
+
+- name: Enable and start the backup timer
+  ansible.builtin.systemd:
+    name: restic-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true

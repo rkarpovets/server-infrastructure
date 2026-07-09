@@ -1,0 +1,30 @@
+---
+# What to back up: the stateful data the playbook does NOT generate from code.
+# Everything else (game files, mods, dashboards, configs) is reproducible from
+# the repo, and observability data (Prometheus/Loki) is ephemeral by design.
+backup_xui_db: /etc/x-ui/x-ui.db
+backup_letsencrypt_dir: /etc/letsencrypt
+
+# Cloudflare R2 target (S3-compatible). Endpoint + bucket are set per host
+# (vaulted); the path is the prefix inside the bucket. An empty bucket disables
+# the role (see site.yml) so a lab host without R2 credentials is skipped.
+backup_s3_endpoint: ""
+backup_s3_bucket: ""
+backup_s3_path: prod-infra
+
+# restic encrypts client-side with this password before anything leaves the box,
+# so R2 only ever stores ciphertext. All three come from the vault.
+backup_restic_password: ""
+backup_s3_access_key_id: ""
+backup_s3_secret_access_key: ""
+
+# Retention: restic forget --prune keeps this many daily/weekly snapshots.
+backup_keep_daily: 7
+backup_keep_weekly: 4
+
+# Daily run (server time). Persistent=true catches up a run missed while off.
+backup_on_calendar: "*-*-* 03:30:00"
+
+# Working paths.
+backup_staging_dir: /var/lib/restic-backup
+backup_env_file: /etc/restic-backup/restic.env
