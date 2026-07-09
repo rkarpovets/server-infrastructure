@@ -10,7 +10,7 @@ backup_letsencrypt_dir: /etc/letsencrypt
 # the role (see site.yml) so a lab host without R2 credentials is skipped.
 backup_s3_endpoint: ""
 backup_s3_bucket: ""
-backup_s3_path: prod-infra
+backup_s3_path: stateful-data
 
 # restic encrypts client-side with this password before anything leaves the box,
 # so R2 only ever stores ciphertext. All three come from the vault.
