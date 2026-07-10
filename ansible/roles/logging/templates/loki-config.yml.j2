@@ -31,6 +31,14 @@ schema_config:
 
 limits_config:
   retention_period: {{ loki_retention_period }}
+  # Per-stream override. The game log is huge and keeps the short default; the
+  # manager's join/leave events are tiny and are kept far longer, so player
+  # statistics have history to read. Streams matching no rule fall back to
+  # retention_period above. Enforced by the same compactor.
+  retention_stream:
+    - selector: '{job="sandstorm-manager"}'
+      priority: 1
+      period: {{ loki_manager_retention_period }}
   # Guardrails against label-cardinality blowups and runaway ingest
   max_label_names_per_series: 15
   reject_old_samples: true

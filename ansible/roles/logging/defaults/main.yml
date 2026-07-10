@@ -8,6 +8,11 @@ alloy_image: grafana/alloy:v1.6.1
 # 7 days is a safe ceiling. Tune down if disk gets tight.
 loki_retention_period: 168h          # 7 days
 
+# The RCON manager's join/leave events carry the player id and are the only
+# durable record of who connected. ~10 lines an hour, a few MB a year, so they
+# outlive the game log by a wide margin. Applied via retention_stream.
+loki_manager_retention_period: 8760h  # 1 year
+
 # Whether to tail the Insurgency game log. Set false on any host that does
 # not run the game server, so Alloy does not mount a missing log directory.
 logging_collect_iss: true

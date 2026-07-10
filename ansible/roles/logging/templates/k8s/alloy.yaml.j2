@@ -61,6 +61,14 @@ spec:
             - name: iss-logs
               mountPath: /logs
               readOnly: true
+            # /var/log/containers holds SYMLINKS into /var/log/pods, so both
+            # must be mounted or the tailer resolves a dangling link.
+            - name: container-logs
+              mountPath: /var/log/containers
+              readOnly: true
+            - name: pod-logs
+              mountPath: /var/log/pods
+              readOnly: true
 {% endif %}
             - name: journal
               mountPath: /var/log/journal
@@ -79,6 +87,14 @@ spec:
         - name: iss-logs
           hostPath:
             path: {{ iss_log_path | dirname }}
+            type: Directory
+        - name: container-logs
+          hostPath:
+            path: /var/log/containers
+            type: Directory
+        - name: pod-logs
+          hostPath:
+            path: /var/log/pods
             type: Directory
 {% endif %}
         - name: journal
