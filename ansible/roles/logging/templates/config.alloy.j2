@@ -39,6 +39,38 @@ loki.process "iss" {
   // index cardinality - the #1 way to kill a Loki instance.
   forward_to = [loki.write.default.receiver]
 }
+
+// ============================================================
+//  RCON manager sidecar - player join/leave events
+// ============================================================
+// The manager prints "[JOIN] <name> (<id>)" / "[LEAVE] ..." to stdout, which
+// containerd persists under /var/log/containers and later rotates away. It
+// gets its OWN Loki stream so retention_stream in loki-config.yml can keep it
+// long after the game log expires: ~10 lines an hour, a few MB a year.
+//
+// The glob deliberately does not use sandstorm_namespace: that variable is a
+// default of the sandstorm role, which runs AFTER this one in site.yml.
+local.file_match "manager" {
+  path_targets = [{
+    __path__ = "/var/log/containers/sandstorm-*_manager-*.log",
+    job      = "sandstorm-manager",
+    host     = "{{ inventory_hostname }}",
+  }]
+}
+
+loki.source.file "manager" {
+  targets    = local.file_match.manager.targets
+  forward_to = [loki.process.manager.receiver]
+}
+
+loki.process "manager" {
+  // containerd writes "<rfc3339> stdout F <line>". Unwrap it so Loki stores the
+  // bare line, stamped with the container's own time rather than ingest time.
+  stage.cri {}
+  // No drop stage, on purpose: every line this container emits is an event
+  // worth keeping. The player id stays in the line BODY, never in a label.
+  forward_to = [loki.write.default.receiver]
+}
 {% endif %}
 
 // ============================================================
