@@ -1,0 +1,2 @@
+cloudflare_account_id = "your-cloudflare-account-id"
+r2_bucket_name        = "your-existing-r2-backup-bucket"

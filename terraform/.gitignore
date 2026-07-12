@@ -1,0 +1,14 @@
+# local state (real state lives remotely in R2)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.tfstate.lock.info
+
+# real configs / secrets (only the *.example files are committed)
+*.tfvars
+!*.tfvars.example
+backend.hcl
+!backend.hcl.example
+*-key.json
+sa-key.json
+crash.log

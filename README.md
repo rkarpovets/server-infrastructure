@@ -1,6 +1,6 @@
 # Server Infrastructure as Code
 
-[![CI](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml) [![CD](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml)
+[![CI](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/ci.yml) [![CD](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/cd.yml) [![Terraform](https://github.com/rkarpovets/server-infrastructure/actions/workflows/terraform.yml/badge.svg)](https://github.com/rkarpovets/server-infrastructure/actions/workflows/terraform.yml)
 
 Ansible automation that takes a clean Ubuntu host and provisions a complete,
 production-grade Linux server on a single-node **Kubernetes (k3s)** cluster:
@@ -117,6 +117,7 @@ ansible/
 │       └── production.yml         # production overrides (ports/domain via vault)
 └── roles/                         # one responsibility per role
     └── */templates/k8s/           # Kubernetes manifests (Jinja2-templated)
+terraform/                         # Cloudflare R2 backup bucket as code
 docs/MIGRATION.md                  # disaster-recovery / new-host runbook
 docs/DEPLOY-CHECKLIST.md           # pre-flight checklist for a new-IP deploy
 scripts/render-k8s-manifests.py    # CI: render manifests with dummy secrets for kubeconform
@@ -208,7 +209,10 @@ VPN database, TLS certificates, game saves, metric history - is **not** in the
 repo. The `backup` role backs up the non-reproducible pieces (the 3x-ui database
 and Let's Encrypt certificates) off-site to Cloudflare R2, client-side encrypted,
 so they can be restored on a fresh host through role variables - see
-[docs/BACKUP.md](docs/BACKUP.md). The full new-host runbook is in
+[docs/BACKUP.md](docs/BACKUP.md). The R2 bucket that receives these backups is
+itself defined as code in [`terraform/`](terraform/) (Cloudflare provider):
+Terraform owns the bucket's lifecycle, while restic and Ansible own the backups
+that flow into it. The full new-host runbook is in
 [docs/MIGRATION.md](docs/MIGRATION.md); for a quick pre-flight before deploying
 to a new IP, use [docs/DEPLOY-CHECKLIST.md](docs/DEPLOY-CHECKLIST.md).
 
