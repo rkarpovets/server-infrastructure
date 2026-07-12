@@ -1,0 +1,47 @@
+---
+name: Terraform
+
+# Only runs when Terraform code changes, so Ansible-only PRs stay fast.
+on:
+  push:
+    branches: [main]
+    paths: ['terraform/**', '.github/workflows/terraform.yml']
+  pull_request:
+    paths: ['terraform/**', '.github/workflows/terraform.yml']
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Format & validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+
+      # Install a pinned Terraform binary from the official release archive,
+      # mirroring how CI pulls kubeconform. Pinning keeps a new Terraform
+      # release from silently changing the build's behaviour.
+      - name: Install Terraform
+        run: |
+          curl -sL https://releases.hashicorp.com/terraform/1.15.8/terraform_1.15.8_linux_amd64.zip -o "$RUNNER_TEMP/tf.zip"
+          unzip -o "$RUNNER_TEMP/tf.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      # 1. Formatting hygiene. Fails on any file that isn't `terraform fmt` clean.
+      - name: terraform fmt
+        working-directory: terraform
+        run: terraform fmt -check -recursive -diff
+
+      # 2. Provider download + config validation. `-backend=false` skips remote
+      #    state, so this needs no R2/GCP credentials and touches nothing in the
+      #    cloud. It only downloads the providers from the registry and checks
+      #    the configuration is internally consistent.
+      - name: terraform validate
+        working-directory: terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
