@@ -31,22 +31,21 @@
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
 
-- name: Install/update sandstorm dedicated server (heavy, ~5 GB)
+- name: Install/update sandstorm dedicated server (heavy, ~5 GB on first install)
   tags: install
   ansible.builtin.command:
     cmd: >
       {{ sandstorm_steamcmd_dir }}/steamcmd.sh
       +force_install_dir {{ sandstorm_install_dir }}
       +login anonymous
-      +app_update {{ sandstorm_steam_app_id }} validate
+      +app_update {{ sandstorm_steam_app_id }}
       +quit
-    creates: "{{ sandstorm_install_dir }}/Insurgency/Binaries/Linux/InsurgencyServer-Linux-Shipping"
   become_user: "{{ sandstorm_user }}"
   register: steamcmd_result
-  until: steamcmd_result.rc == 0
+  until: steamcmd_result.rc == 0 and 'Success! App' in steamcmd_result.stdout
   retries: 5
   delay: 10
-  changed_when: steamcmd_result.rc == 0
+  changed_when: "'already up to date' not in steamcmd_result.stdout"
   when: sandstorm_install_server | bool
 
 - name: Symlink ~/sandstorm_server to the game install dir (convenience)
