@@ -8,7 +8,7 @@ ssh_port: "{{ vault_ssh_port }}"
 ufw_enable: true
 # Password auth kept as a deliberate fallback (strong account password set
 # out-of-band); the non-standard SSH port + fail2ban cover brute-force risk.
-ssh_password_authentication: "yes"
+ssh_password_authentication: "no"
 # nginx jails also cover the Grafana HTTPS port served by nginx.
 fail2ban_nginx_ports: "http,https,{{ nginx_https_port }}"
 
