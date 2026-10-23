@@ -17,7 +17,7 @@ local.file_match "iss" {
   path_targets = [
 {% for instance in sandstorm_instances %}
     {
-      __path__ = "/logs/{{ instance.name }}/Insurgency.log",
+      __path__ = "/logs-{{ instance.name }}/Insurgency.log",
       job      = "sandstorm",
       server   = "{{ instance.name }}",
       host     = "{{ inventory_hostname }}",

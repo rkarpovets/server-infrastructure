@@ -60,7 +60,7 @@ spec:
             # would keep tailing the stale old inode forever.
 {% for instance in sandstorm_instances %}
             - name: iss-logs-{{ instance.name }}
-              mountPath: /logs/{{ instance.name }}
+              mountPath: /logs-{{ instance.name }}
               readOnly: true
 {% endfor %}
             # /var/log/containers holds SYMLINKS into /var/log/pods, so both
