@@ -124,7 +124,7 @@
     src: "{{ sandstorm_config_override if sandstorm_config_override in sandstorm_config_override_paths else sandstorm_home ~ '/iss-config-src/' ~ item.1.src }}"
     dest: "{{ sandstorm_common_dir }}/{{ item.0.dir }}/{{ item.1.dest }}"
     remote_src: true
-    owner: "{{ sandstorm_user }}"
+    owner: "{{ item.1.owner | default(sandstorm_user) }}"
     group: "{{ sandstorm_user }}"
     mode: "{{ item.1.mode }}"
   loop: "{{ sandstorm_instances | product(sandstorm_config_files) | list }}"
@@ -138,7 +138,7 @@
       - { src: "Insurgency/Config/Server/Admins.txt", dest: "Insurgency/Config/Server/Admins.txt", mode: "0664" }
       - { src: "Insurgency/Config/Server/MapCycle.txt", dest: "Insurgency/Config/Server/MapCycle.txt", mode: "0664" }
       - { src: "Insurgency/Config/Server/Motd.txt", dest: "Insurgency/Config/Server/Motd.txt", mode: "0664" }
-      - { src: "Insurgency/Saved/Config/LinuxServer/Game.ini", dest: "Insurgency/Saved/Config/LinuxServer/Game.ini", mode: "0664" }
+      - { src: "Insurgency/Saved/Config/LinuxServer/Game.ini", dest: "Insurgency/Saved/Config/LinuxServer/Game.ini", mode: "0644", owner: root }
       - { src: "Insurgency/Saved/Config/LinuxServer/Engine.ini", dest: "Insurgency/Saved/Config/LinuxServer/Engine.ini", mode: "0664" }
       - { src: "server.sh", dest: "server.sh", mode: "0755" }
       - { src: "servermanager.py", dest: "servermanager.py", mode: "0755" }
