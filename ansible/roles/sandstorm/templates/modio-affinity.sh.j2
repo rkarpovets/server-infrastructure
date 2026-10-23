@@ -7,10 +7,9 @@
 # mod.io background work is not latency-sensitive.
 # Runs from a 1-minute timer: idempotent, and re-applies after game restarts.
 
-PID=$(pgrep -f InsurgencyServer-Linux-Shipping | head -1)
-[ -z "$PID" ] && exit 0
-
-grep -l ModioBackground /proc/"$PID"/task/*/comm 2>/dev/null | while read -r f; do
-    tid=$(basename "$(dirname "$f")")
-    taskset -pc {{ host_tuning_general_cpus }} "$tid" >/dev/null 2>&1 || true
+for PID in $(pgrep -f InsurgencyServer-Linux-Shipping); do
+    grep -l ModioBackground /proc/"$PID"/task/*/comm 2>/dev/null | while read -r f; do
+        tid=$(basename "$(dirname "$f")")
+        taskset -pc {{ host_tuning_general_cpus }} "$tid" >/dev/null 2>&1 || true
+    done
 done

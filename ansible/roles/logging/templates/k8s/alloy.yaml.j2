@@ -58,9 +58,11 @@ spec:
             # The game LOG DIRECTORY, not the file: the game recreates
             # Insurgency.log (new inode) on restart, and a file bind-mount
             # would keep tailing the stale old inode forever.
-            - name: iss-logs
-              mountPath: /logs
+{% for instance in sandstorm_instances %}
+            - name: iss-logs-{{ instance.name }}
+              mountPath: /logs/{{ instance.name }}
               readOnly: true
+{% endfor %}
             # /var/log/containers holds SYMLINKS into /var/log/pods, so both
             # must be mounted or the tailer resolves a dangling link.
             - name: container-logs
@@ -84,10 +86,12 @@ spec:
           persistentVolumeClaim:
             claimName: alloy-data
 {% if logging_collect_iss %}
-        - name: iss-logs
+{% for instance in sandstorm_instances %}
+        - name: iss-logs-{{ instance.name }}
           hostPath:
-            path: {{ iss_log_path | dirname }}
+            path: {{ logging_iss_games_dir }}/{{ instance.dir }}/Insurgency/Saved/Logs
             type: Directory
+{% endfor %}
         - name: container-logs
           hostPath:
             path: /var/log/containers

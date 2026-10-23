@@ -1,0 +1,7 @@
+[Unit]
+Description=Prune old Insurgency server log backups
+
+[Service]
+Type=oneshot
+User={{ sandstorm_user }}
+ExecStart=/usr/local/bin/sandstorm-log-cleanup.sh

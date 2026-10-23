@@ -62,6 +62,8 @@ spec:
             # empty tokens, default map - the whole boot goes sideways).
             - name: HOME
               value: {{ sandstorm_home }}
+            - name: ENV_FILE
+              value: {{ sandstorm_home }}/{{ instance.env_file }}
           # Second line of defense (the manager heals what RCON can reach):
           # if the game hangs so hard it stops logging, k8s restarts the pod.
           #
@@ -100,6 +102,8 @@ spec:
           env:
             - name: PYTHONPATH
               value: /tmp/pydeps
+            - name: ENV_FILE
+              value: {{ sandstorm_home }}/{{ instance.env_file }}
           volumeMounts:
             - name: steam-home
               mountPath: {{ sandstorm_home }}

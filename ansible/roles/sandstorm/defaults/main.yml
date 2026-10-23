@@ -22,20 +22,7 @@ sandstorm_config_version: main
 # local only (via SSH tunnel). The manager connects over loopback.
 sandstorm_rcon_ip: 127.0.0.1
 
-sandstorm_instances:
-  - name: sandstorm
-    dir: sandstorm_server
-    cpu: 3
-    game_port: 27000
-    query_port: 27010
-    rcon_port: 27020
-    server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
-    max_players: 16
-    env_file: .env
-    metrics_file: /var/lib/node_exporter/iss_players.prom
-    rcon_password: "{{ sandstorm_rcon_password }}"
-    gslt_token: "{{ sandstorm_gslt_token }}"
-    gamestats_token: "{{ sandstorm_gamestats_token }}"
+sandstorm_log_retention_days: 3
 
 # Game alerts. A DEDICATED game bot (its own token) posting to the SAME shared
 # chat as the monitoring bot. Secrets come from vault; default to empty so the

@@ -1,0 +1,5 @@
+#!/bin/sh
+{% for instance in sandstorm_instances %}
+find "{{ sandstorm_common_dir }}/{{ instance.dir }}/Insurgency/Saved/Logs" -maxdepth 1 -type f -name '*-backup-*.log' -mtime +{{ sandstorm_log_retention_days }} -delete 2>/dev/null
+{% endfor %}
+exit 0
