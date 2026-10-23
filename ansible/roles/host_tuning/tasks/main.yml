@@ -49,6 +49,6 @@
     msg: >-
       CPU isolation is configured in GRUB but NOT active in the running
       kernel (isolated='{{ host_tuning_isolated_now.stdout }}', expected
-      '{{ host_tuning_isolated_cpu }}'). Schedule a manual reboot while no
+      '{{ host_tuning_isolated_cpus }}'). Schedule a manual reboot while no
       players are online, then run the verification checklist.
-  when: host_tuning_isolated_now.stdout != host_tuning_isolated_cpu | string
+  when: host_tuning_isolated_now.stdout != host_tuning_isolated_cpus | string
