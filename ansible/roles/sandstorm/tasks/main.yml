@@ -94,9 +94,20 @@
       - Insurgency/Saved/Config/LinuxServer
       - Insurgency/Saved/Logs
 
+- name: Find per-server config overrides
+  check_mode: false
+  ansible.builtin.find:
+    paths: "{{ sandstorm_home }}/iss-config-src/servers/{{ instance.name }}"
+    recurse: true
+  register: sandstorm_config_overrides
+  loop: "{{ sandstorm_instances }}"
+  loop_control:
+    loop_var: instance
+    label: "{{ instance.name }}"
+
 - name: Deploy game config files from repo
   ansible.builtin.copy:
-    src: "{{ sandstorm_home }}/iss-config-src/{{ item.1.src }}"
+    src: "{{ sandstorm_config_override if sandstorm_config_override in sandstorm_config_override_paths else sandstorm_home ~ '/iss-config-src/' ~ item.1.src }}"
     dest: "{{ sandstorm_common_dir }}/{{ item.0.dir }}/{{ item.1.dest }}"
     remote_src: true
     owner: "{{ sandstorm_user }}"
@@ -106,6 +117,8 @@
   loop_control:
     label: "{{ item.0.name }}: {{ item.1.dest }}"
   vars:
+    sandstorm_config_override: "{{ sandstorm_home }}/iss-config-src/servers/{{ item.0.name }}/{{ item.1.src }}"
+    sandstorm_config_override_paths: "{{ sandstorm_config_overrides.results | map(attribute='files') | flatten | map(attribute='path') | list }}"
     sandstorm_config_files:
       - { src: "Insurgency/Config/Server/Admins.txt", dest: "Insurgency/Config/Server/Admins.txt", mode: "0664" }
       - { src: "Insurgency/Config/Server/MapCycle.txt", dest: "Insurgency/Config/Server/MapCycle.txt", mode: "0664" }
