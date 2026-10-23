@@ -2,11 +2,10 @@
 sandstorm_user: steam
 sandstorm_home: /home/steam
 # steamcmd and the game live under the standard Steam data root, matching the
-# real server layout (steamcmd installs itself and its steamapps here). The
-# convenience symlink ~/sandstorm_server also points at sandstorm_install_dir.
+# real server layout (steamcmd installs itself and its steamapps here).
 sandstorm_steam_root: "{{ sandstorm_home }}/.local/share/Steam"
 sandstorm_steamcmd_dir: "{{ sandstorm_steam_root }}/steamcmd"
-sandstorm_install_dir: "{{ sandstorm_steam_root }}/steamapps/common/sandstorm_server"
+sandstorm_common_dir: "{{ sandstorm_steam_root }}/steamapps/common"
 sandstorm_steam_app_id: 581330
 sandstorm_install_server: true
 
@@ -19,33 +18,36 @@ sandstorm_manager_image: python:3.12-slim
 sandstorm_config_repo: https://github.com/rkarpovets/insurgency-sandstorm-server.git
 sandstorm_config_version: main
 
-sandstorm_game_port: 27000
-sandstorm_query_port: 27010
 # RCON binds 0.0.0.0 but is NEVER opened in the firewall - admin access is
 # local only (via SSH tunnel). The manager connects over loopback.
 sandstorm_rcon_ip: 127.0.0.1
-sandstorm_rcon_port: 27020
+
+sandstorm_instances:
+  - name: sandstorm
+    dir: sandstorm_server
+    cpu: 3
+    game_port: 27000
+    query_port: 27010
+    rcon_port: 27020
+    server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
+    max_players: 16
+    env_file: .env
+    metrics_file: /var/lib/node_exporter/iss_players.prom
+    rcon_password: "{{ sandstorm_rcon_password }}"
+    gslt_token: "{{ sandstorm_gslt_token }}"
+    gamestats_token: "{{ sandstorm_gamestats_token }}"
 
 # Game alerts. A DEDICATED game bot (its own token) posting to the SAME shared
 # chat as the monitoring bot. Secrets come from vault; default to empty so the
 # manager simply runs without Telegram where they are not set.
-sandstorm_server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
-sandstorm_max_players: 16
 sandstorm_telegram_token: "{{ vault_telegram_sandstorm_bot_token | default('') }}"
 sandstorm_telegram_chat_id: "{{ vault_telegram_chat_id | default('') }}"
 # Steam Web API key for resolving SteamID -> player name: the manager reads
 # player IDs from RCON listplayers and looks names up via the API. From vault;
 # empty by default so names fall back to "SteamID:<id>" where no key is set.
 sandstorm_steam_api_key: "{{ vault_steam_api_key | default('') }}"
-# node_exporter textfile-collector target (read by Prometheus -> Grafana)
-sandstorm_metrics_file: /var/lib/node_exporter/iss_players.prom
 
 sandstorm_mods:
   - { id: 150867, file_id: 7474149, pak: ISMCmpakchunk0-WindowsClient.pak }
   - { id: 1516914, file_id: 7474160, pak: ISMCrpakchunk0-WindowsClient.pak }
 sandstorm_modio_token: "{{ vault_sandstorm_modio_token }}"
-
-sandstorm_firewall_ports:
-  - { port: "{{ sandstorm_game_port }}", proto: udp }    # game
-  - { port: "{{ sandstorm_query_port }}", proto: udp }   # query
-  # RCON ({{ sandstorm_rcon_port }}/tcp) is intentionally NOT exposed

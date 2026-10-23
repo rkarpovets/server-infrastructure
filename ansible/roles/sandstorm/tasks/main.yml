@@ -36,7 +36,7 @@
   ansible.builtin.command:
     cmd: >
       {{ sandstorm_steamcmd_dir }}/steamcmd.sh
-      +force_install_dir {{ sandstorm_install_dir }}
+      +force_install_dir {{ sandstorm_common_dir }}/{{ instance.dir }}
       +login anonymous
       +app_update {{ sandstorm_steam_app_id }}
       +quit
@@ -46,16 +46,24 @@
   retries: 5
   delay: 10
   changed_when: "'already up to date' not in steamcmd_result.stdout"
+  loop: "{{ sandstorm_instances }}"
+  loop_control:
+    loop_var: instance
+    label: "{{ instance.name }}"
   when: sandstorm_install_server | bool
 
-- name: Symlink ~/sandstorm_server to the game install dir (convenience)
+- name: Symlink ~/<dir> to each game install dir (convenience)
   ansible.builtin.file:
-    src: "{{ sandstorm_install_dir }}"
-    dest: "{{ sandstorm_home }}/sandstorm_server"
+    src: "{{ sandstorm_common_dir }}/{{ instance.dir }}"
+    dest: "{{ sandstorm_home }}/{{ instance.dir }}"
     state: link
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     force: true
+  loop: "{{ sandstorm_instances }}"
+  loop_control:
+    loop_var: instance
+    label: "{{ instance.name }}"
   when: sandstorm_install_server | bool
 
 - name: Clone/update config repo
@@ -72,32 +80,40 @@
 
 - name: Ensure config directories exist
   ansible.builtin.file:
-    path: "{{ sandstorm_install_dir }}/{{ item }}"
+    path: "{{ sandstorm_common_dir }}/{{ item.0.dir }}/{{ item.1 }}"
     state: directory
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0775"
-  loop:
-    - Insurgency/Config/Server
-    - Insurgency/Saved/Config/LinuxServer
-    - Insurgency/Saved/Logs
+  loop: "{{ sandstorm_instances | product(sandstorm_config_dirs) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}: {{ item.1 }}"
+  vars:
+    sandstorm_config_dirs:
+      - Insurgency/Config/Server
+      - Insurgency/Saved/Config/LinuxServer
+      - Insurgency/Saved/Logs
 
 - name: Deploy game config files from repo
   ansible.builtin.copy:
-    src: "{{ sandstorm_home }}/iss-config-src/{{ item.src }}"
-    dest: "{{ sandstorm_install_dir }}/{{ item.dest }}"
+    src: "{{ sandstorm_home }}/iss-config-src/{{ item.1.src }}"
+    dest: "{{ sandstorm_common_dir }}/{{ item.0.dir }}/{{ item.1.dest }}"
     remote_src: true
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
-    mode: "{{ item.mode }}"
-  loop:
-    - { src: "Insurgency/Config/Server/Admins.txt", dest: "Insurgency/Config/Server/Admins.txt", mode: "0664" }
-    - { src: "Insurgency/Config/Server/MapCycle.txt", dest: "Insurgency/Config/Server/MapCycle.txt", mode: "0664" }
-    - { src: "Insurgency/Config/Server/Motd.txt", dest: "Insurgency/Config/Server/Motd.txt", mode: "0664" }
-    - { src: "Insurgency/Saved/Config/LinuxServer/Game.ini", dest: "Insurgency/Saved/Config/LinuxServer/Game.ini", mode: "0664" }
-    - { src: "Insurgency/Saved/Config/LinuxServer/Engine.ini", dest: "Insurgency/Saved/Config/LinuxServer/Engine.ini", mode: "0664" }
-    - { src: "server.sh", dest: "server.sh", mode: "0755" }
-    - { src: "servermanager.py", dest: "servermanager.py", mode: "0755" }
+    mode: "{{ item.1.mode }}"
+  loop: "{{ sandstorm_instances | product(sandstorm_config_files) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}: {{ item.1.dest }}"
+  vars:
+    sandstorm_config_files:
+      - { src: "Insurgency/Config/Server/Admins.txt", dest: "Insurgency/Config/Server/Admins.txt", mode: "0664" }
+      - { src: "Insurgency/Config/Server/MapCycle.txt", dest: "Insurgency/Config/Server/MapCycle.txt", mode: "0664" }
+      - { src: "Insurgency/Config/Server/Motd.txt", dest: "Insurgency/Config/Server/Motd.txt", mode: "0664" }
+      - { src: "Insurgency/Saved/Config/LinuxServer/Game.ini", dest: "Insurgency/Saved/Config/LinuxServer/Game.ini", mode: "0664" }
+      - { src: "Insurgency/Saved/Config/LinuxServer/Engine.ini", dest: "Insurgency/Saved/Config/LinuxServer/Engine.ini", mode: "0664" }
+      - { src: "server.sh", dest: "server.sh", mode: "0755" }
+      - { src: "servermanager.py", dest: "servermanager.py", mode: "0755" }
 
 # No notify anywhere below on purpose: nothing may auto-restart the live
 # game. Config/.env changes are applied with a MANUAL
@@ -106,18 +122,26 @@
 - name: Deploy Mods.txt (from sandstorm_mods)
   ansible.builtin.template:
     src: Mods.txt.j2
-    dest: "{{ sandstorm_install_dir }}/Insurgency/Config/Server/Mods.txt"
+    dest: "{{ sandstorm_common_dir }}/{{ instance.dir }}/Insurgency/Config/Server/Mods.txt"
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0664"
+  loop: "{{ sandstorm_instances }}"
+  loop_control:
+    loop_var: instance
+    label: "{{ instance.name }}"
 
 - name: Deploy .env (secrets from vault)
   ansible.builtin.template:
     src: env.j2
-    dest: "{{ sandstorm_home }}/.env"
+    dest: "{{ sandstorm_home }}/{{ instance.env_file }}"
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0600"
+  loop: "{{ sandstorm_instances }}"
+  loop_control:
+    loop_var: instance
+    label: "{{ instance.name }}"
 
 # The manager (running as the unprivileged game user) writes the player-count
 # metric into node_exporter's textfile dir, which the monitoring role owns as
@@ -125,9 +149,9 @@
 # role dependency). node_exporter still reads the dir read-only.
 - name: Allow the game manager to write the node_exporter metric
   ansible.builtin.command:
-    cmd: "setfacl -m u:{{ sandstorm_user }}:rwx {{ sandstorm_metrics_file | dirname }}"
+    cmd: "setfacl -m u:{{ sandstorm_user }}:rwx {{ item }}"
   changed_when: false
-  when: sandstorm_metrics_file | length > 0
+  loop: "{{ sandstorm_instances | map(attribute='metrics_file') | select | map('dirname') | unique | list }}"
 
 - name: Remove the legacy systemd units (the game runs in k3s now)
   ansible.builtin.file:
@@ -141,10 +165,10 @@
   no_log: true
   community.general.ufw:
     rule: allow
-    port: "{{ item.port }}"
-    proto: "{{ item.proto }}"
-    comment: "sandstorm {{ item.proto }}"
-  loop: "{{ sandstorm_firewall_ports }}"
+    port: "{{ item }}"
+    proto: udp
+    comment: "sandstorm udp"
+  loop: "{{ sandstorm_instances | map(attribute='game_port') | list + sandstorm_instances | map(attribute='query_port') | list }}"
 
 - name: Create mod.io directories
   ansible.builtin.file:
@@ -215,24 +239,24 @@
 
 - name: Create mod symlink directories
   ansible.builtin.file:
-    path: "{{ sandstorm_install_dir }}/Insurgency/Mods/modio/{{ item.id }}/{{ item.file_id }}"
+    path: "{{ sandstorm_common_dir }}/{{ item.0.dir }}/Insurgency/Mods/modio/{{ item.1.id }}/{{ item.1.file_id }}"
     state: directory
     owner: "{{ sandstorm_user }}"
     group: "{{ sandstorm_user }}"
     mode: "0775"
-  loop: "{{ sandstorm_mods }}"
+  loop: "{{ sandstorm_instances | product(sandstorm_mods) | list }}"
   loop_control:
-    label: "{{ item.id }}"
+    label: "{{ item.0.name }}: {{ item.1.id }}"
 
 - name: Symlink mod paks into game Mods directory
   ansible.builtin.file:
-    src: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.id }}/{{ item.pak }}"
-    dest: "{{ sandstorm_install_dir }}/Insurgency/Mods/modio/{{ item.id }}/{{ item.file_id }}/{{ item.pak }}"
+    src: "{{ sandstorm_home }}/mod.io/common/254/mods/{{ item.1.id }}/{{ item.1.pak }}"
+    dest: "{{ sandstorm_common_dir }}/{{ item.0.dir }}/Insurgency/Mods/modio/{{ item.1.id }}/{{ item.1.file_id }}/{{ item.1.pak }}"
     state: link
     force: true
-  loop: "{{ sandstorm_mods }}"
+  loop: "{{ sandstorm_instances | product(sandstorm_mods) | list }}"
   loop_control:
-    label: "{{ item.id }}"
+    label: "{{ item.0.name }}: {{ item.1.id }}"
 
 # The pod must run as the REAL uid/gid of the steam user on THIS host - it is
 # not guaranteed to be 1000 (here ubuntu owns 1000 and steam got 1001, which
