@@ -23,6 +23,7 @@ sandstorm_config_version: main
 sandstorm_rcon_ip: 127.0.0.1
 
 sandstorm_log_retention_days: 3
+sandstorm_board_dir: "{{ sandstorm_home }}/telegram-board"
 
 # Game alerts. A DEDICATED game bot (its own token) posting to the SAME shared
 # chat as the monitoring bot. Secrets come from vault; default to empty so the

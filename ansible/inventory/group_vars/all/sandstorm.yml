@@ -7,6 +7,8 @@ sandstorm_instances:
     rcon_port: 27020
     server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
     max_players: 16
+    tag: "[1]"
+    mutators: [ISMCarmory_Legacy, ISMCJumpShoot]
     env_file: .env
   - name: sandstorm-hardcore
     dir: sandstorm_server_hardcore
@@ -17,6 +19,8 @@ sandstorm_instances:
     server_name: "[DE] CrazyStorm / ISMC / Hardcore"
     max_players: 10
     game_mode: CheckpointHardcore
+    tag: "[2]"
+    mutators: [ISMCarmory_Legacy, ISMCJumpShoot, Hardcore]
     env_file: .env.sandstorm-hardcore
 
 sandstorm_instance_secrets:

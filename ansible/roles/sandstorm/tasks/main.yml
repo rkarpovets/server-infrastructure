@@ -204,6 +204,14 @@
     comment: "sandstorm udp"
   loop: "{{ sandstorm_instances | map(attribute='game_port') | list + sandstorm_instances | map(attribute='query_port') | list }}"
 
+- name: Create shared Telegram board directory
+  ansible.builtin.file:
+    path: "{{ sandstorm_board_dir }}"
+    state: directory
+    owner: "{{ sandstorm_user }}"
+    group: "{{ sandstorm_user }}"
+    mode: "0750"
+
 - name: Create mod.io directories
   ansible.builtin.file:
     path: "{{ item }}"
