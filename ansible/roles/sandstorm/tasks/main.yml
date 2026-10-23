@@ -66,6 +66,20 @@
     label: "{{ instance.name }}"
   when: sandstorm_install_server | bool
 
+- name: Check which game installs exist
+  check_mode: false
+  ansible.builtin.stat:
+    path: "{{ sandstorm_common_dir }}/{{ instance.dir }}"
+  register: sandstorm_install_stats
+  loop: "{{ sandstorm_instances }}"
+  loop_control:
+    loop_var: instance
+    label: "{{ instance.name }}"
+
+- name: Note game installs that are not on disk yet
+  ansible.builtin.set_fact:
+    sandstorm_pending_dirs: "{{ sandstorm_install_stats.results | rejectattr('stat.exists') | map(attribute='instance.dir') | list }}"
+
 - name: Clone/update config repo
   check_mode: false
   ansible.builtin.git:
@@ -116,6 +130,7 @@
   loop: "{{ sandstorm_instances | product(sandstorm_config_files) | list }}"
   loop_control:
     label: "{{ item.0.name }}: {{ item.1.dest }}"
+  when: not ansible_check_mode or item.0.dir not in sandstorm_pending_dirs
   vars:
     sandstorm_config_override: "{{ sandstorm_home }}/iss-config-src/servers/{{ item.0.name }}/{{ item.1.src }}"
     sandstorm_config_override_paths: "{{ sandstorm_config_overrides.results | map(attribute='files') | flatten | map(attribute='path') | list }}"
@@ -143,6 +158,7 @@
   loop_control:
     loop_var: instance
     label: "{{ instance.name }}"
+  when: not ansible_check_mode or instance.dir not in sandstorm_pending_dirs
 
 - name: Deploy .env (secrets from vault)
   ansible.builtin.template:
@@ -275,6 +291,7 @@
   loop: "{{ sandstorm_instances | product(sandstorm_mods) | list }}"
   loop_control:
     label: "{{ item.0.name }}: {{ item.1.id }}"
+  when: not ansible_check_mode or item.0.dir not in sandstorm_pending_dirs
 
 # The pod must run as the REAL uid/gid of the steam user on THIS host - it is
 # not guaranteed to be 1000 (here ubuntu owns 1000 and steam got 1001, which
