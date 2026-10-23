@@ -11,3 +11,16 @@ sandstorm_instances:
     rcon_password: "{{ sandstorm_rcon_password }}"
     gslt_token: "{{ sandstorm_gslt_token }}"
     gamestats_token: "{{ sandstorm_gamestats_token }}"
+  - name: sandstorm-hardcore
+    dir: sandstorm_server_hardcore
+    cpu: 2
+    game_port: 27100
+    query_port: 27110
+    rcon_port: 27120
+    server_name: "[DE] CrazyStorm / ISMC / Hardcore"
+    max_players: 10
+    game_mode: CheckpointHardcore
+    env_file: .env.sandstorm-hardcore
+    rcon_password: "{{ vault_sandstorm_hardcore_rcon_password }}"
+    gslt_token: "{{ vault_sandstorm_hardcore_gslt_token }}"
+    gamestats_token: "{{ vault_sandstorm_hardcore_gamestats_token }}"
