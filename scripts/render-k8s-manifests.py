@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROLES_DIR = os.path.join(REPO, "ansible", "roles")
+GROUP_VARS_ALL = os.path.join(REPO, "ansible", "inventory", "group_vars", "all")
 K8S_ROLES = ["monitoring", "logging", "nginx", "sandstorm"]
 
 # Stand-ins for vaulted / host-derived / inventory values.
@@ -43,6 +44,10 @@ def load_context():
         defaults = os.path.join(ROLES_DIR, role, "defaults", "main.yml")
         if os.path.exists(defaults):
             with open(defaults) as f:
+                ctx.update(yaml.safe_load(f) or {})
+    for name in sorted(os.listdir(GROUP_VARS_ALL)):
+        if name.endswith(".yml") and name != "vault.yml":
+            with open(os.path.join(GROUP_VARS_ALL, name)) as f:
                 ctx.update(yaml.safe_load(f) or {})
     ctx.update(DUMMY)
 

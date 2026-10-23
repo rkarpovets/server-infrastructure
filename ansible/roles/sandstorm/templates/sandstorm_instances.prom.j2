@@ -1,0 +1,5 @@
+# HELP iss_instance_info Game server instance and the CPU core it is pinned to
+# TYPE iss_instance_info gauge
+{% for instance in sandstorm_instances %}
+iss_instance_info{server="{{ instance.name }}",cpu="{{ instance.cpu }}"} 1
+{% endfor %}

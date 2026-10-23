@@ -1,0 +1,13 @@
+sandstorm_instances:
+  - name: sandstorm
+    dir: sandstorm_server
+    cpu: 3
+    game_port: 27000
+    query_port: 27010
+    rcon_port: 27020
+    server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
+    max_players: 16
+    env_file: .env
+    rcon_password: "{{ sandstorm_rcon_password }}"
+    gslt_token: "{{ sandstorm_gslt_token }}"
+    gamestats_token: "{{ sandstorm_gamestats_token }}"

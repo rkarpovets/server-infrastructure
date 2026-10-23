@@ -5,11 +5,37 @@
   "timezone": "utc",
   "editable": true,
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "30s",
   "graphTooltip": 1,
   "time": { "from": "now-6h", "to": "now" },
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "server",
+        "label": "Server",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(iss_instance_info, server)",
+        "query": { "qryType": 1, "query": "label_values(iss_instance_info, server)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "cpu",
+        "type": "query",
+        "hide": 2,
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(iss_instance_info{server=\"$server\"}, cpu)",
+        "query": { "qryType": 1, "query": "label_values(iss_instance_info{server=\"$server\"}, cpu)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
   "annotations": {
     "list": [
       {
@@ -30,7 +56,7 @@
         "target": {
           "refId": "Anno",
           "queryType": "range",
-          "expr": "{job=\"sandstorm\"} |= \"Loading scenario asset\" | regexp \"Scenario_(?P<scn>[^']+)'\" | line_format \"\\ud83d\\uddfa {{.scn}}\""
+          "expr": "{job=\"sandstorm\",server=\"$server\"} |= \"Loading scenario asset\" | regexp \"Scenario_(?P<scn>[^']+)'\" | line_format \"\\ud83d\\uddfa {{.scn}}\""
         }
       },
       {
@@ -42,7 +68,7 @@
         "target": {
           "refId": "Anno",
           "queryType": "range",
-          "expr": "{job=\"sandstorm\"} |= \"disconnected\" |= \"say\" | regexp \"say (?P<who>.+) disconnected\" | line_format \"\\u2b05 {{.who}}\""
+          "expr": "{job=\"sandstorm\",server=\"$server\"} |= \"disconnected\" |= \"say\" | regexp \"say (?P<who>.+) disconnected\" | line_format \"\\u2b05 {{.who}}\""
         }
       }
     ]
@@ -63,7 +89,7 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "label_replace(iss_map_info == 1, \"s\", \"$1\", \"side\", \"^(.).*\")",
+          "expr": "label_replace(iss_map_info{server=\"$server\"} == 1, \"s\", \"$1\", \"side\", \"^(.).*\")",
           "legendFormat": "{{map}}_{{s}}", "instant": true }
       ]
     },
@@ -82,14 +108,14 @@
       "options": { "graphMode": "area", "colorMode": "value", "textMode": "value",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [
-        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online", "instant": false }
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online{server=\"$server\"}", "instant": false }
       ]
     },
     {
       "id": 12,
       "type": "stat",
       "title": "Game core load",
-      "description": "Busy % of the isolated core (cpu 3) that runs ONLY the game process. This is the number that decides tick stability.",
+      "description": "Busy % of the isolated core that runs ONLY the selected game server. This is the number that decides tick stability.",
       "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -105,7 +131,7 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{cpu=\"3\",mode=\"idle\"}[2m])) * 100)", "instant": false }
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{cpu=\"$cpu\",mode=\"idle\"}[2m])) * 100)", "instant": false }
       ]
     },
     {
@@ -128,15 +154,15 @@
       },
       "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } },
       "targets": [
-        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online", "legendFormat": "players" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_max", "legendFormat": "slots" }
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_online{server=\"$server\"}", "legendFormat": "players" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "iss_players_max{server=\"$server\"}", "legendFormat": "slots" }
       ]
     },
     {
       "id": 21,
       "type": "timeseries",
       "title": "Game core load (%)",
-      "description": "Only the isolated game core (cpu 3). Shares the crosshair with the players panel - move the cursor to correlate load with player count.",
+      "description": "Only the isolated core of the selected game server. Shares the crosshair with the players panel - move the cursor to correlate load with player count.",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -152,7 +178,7 @@
       "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "single" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{cpu=\"3\",mode=\"idle\"}[2m])) * 100)", "legendFormat": "game core" }
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{cpu=\"$cpu\",mode=\"idle\"}[2m])) * 100)", "legendFormat": "game core" }
       ]
     },
     {
@@ -176,7 +202,7 @@
         "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "label_replace(iss_map_info == 1, \"s\", \"$1\", \"side\", \"^(.).*\")",
+          "expr": "label_replace(iss_map_info{server=\"$server\"} == 1, \"s\", \"$1\", \"side\", \"^(.).*\")",
           "legendFormat": "{{map}}_{{s}}" }
       ]
     },
@@ -189,7 +215,7 @@
       "datasource": { "type": "loki", "uid": "loki" },
       "options": { "showTime": true, "showLabels": false, "wrapLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Descending", "prettifyLogMessage": false },
       "targets": [
-        { "refId": "A", "datasource": { "type": "loki", "uid": "loki" }, "queryType": "range", "expr": "{job=\"sandstorm\"} != \"listplayers\"" }
+        { "refId": "A", "datasource": { "type": "loki", "uid": "loki" }, "queryType": "range", "expr": "{job=\"sandstorm\",server=\"$server\"} != \"listplayers\"" }
       ]
     }
   ]

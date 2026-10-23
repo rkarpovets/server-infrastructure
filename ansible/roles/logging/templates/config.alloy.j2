@@ -14,11 +14,16 @@ loki.write "default" {
 //  Insurgency: Sandstorm game log
 // ============================================================
 local.file_match "iss" {
-  path_targets = [{
-    __path__ = "/logs/Insurgency.log",
-    job      = "sandstorm",
-    host     = "{{ inventory_hostname }}",
-  }]
+  path_targets = [
+{% for instance in sandstorm_instances %}
+    {
+      __path__ = "/logs/{{ instance.name }}/Insurgency.log",
+      job      = "sandstorm",
+      server   = "{{ instance.name }}",
+      host     = "{{ inventory_hostname }}",
+    },
+{% endfor %}
+  ]
 }
 
 loki.source.file "iss" {
@@ -58,8 +63,18 @@ local.file_match "manager" {
   }]
 }
 
+discovery.relabel "manager" {
+  targets = local.file_match.manager.targets
+
+  rule {
+    source_labels = ["__path__"]
+    regex         = "/var/log/containers/(.+)-[a-z0-9]+-[a-z0-9]{5}_[^_]+_manager-.*"
+    target_label  = "server"
+  }
+}
+
 loki.source.file "manager" {
-  targets    = local.file_match.manager.targets
+  targets    = discovery.relabel.manager.output
   forward_to = [loki.process.manager.receiver]
 }
 

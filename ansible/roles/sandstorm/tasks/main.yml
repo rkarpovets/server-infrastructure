@@ -149,9 +149,14 @@
 # role dependency). node_exporter still reads the dir read-only.
 - name: Allow the game manager to write the node_exporter metric
   ansible.builtin.command:
-    cmd: "setfacl -m u:{{ sandstorm_user }}:rwx {{ item }}"
+    cmd: "setfacl -m u:{{ sandstorm_user }}:rwx {{ monitoring_textfile_dir }}"
   changed_when: false
-  loop: "{{ sandstorm_instances | map(attribute='metrics_file') | select | map('dirname') | unique | list }}"
+
+- name: Publish instance-to-core mapping for dashboards
+  ansible.builtin.template:
+    src: sandstorm_instances.prom.j2
+    dest: "{{ monitoring_textfile_dir }}/sandstorm_instances.prom"
+    mode: "0644"
 
 - name: Remove the legacy systemd units (the game runs in k3s now)
   ansible.builtin.file:
@@ -283,6 +288,11 @@
     state: present
     definition: "{{ lookup('template', 'k8s/sandstorm.yaml.j2') }}"
 
+- name: Remove the pre-multi-instance metric file
+  ansible.builtin.file:
+    path: "{{ monitoring_textfile_dir }}/iss_players.prom"
+    state: absent
+
 # --- ModioBackground eviction (no notify on purpose: never restart the game) ---
 - name: Deploy ModioBackground affinity script
   ansible.builtin.template:
@@ -306,3 +316,25 @@
     state: started
     daemon_reload: true
   when: sandstorm_install_server | bool
+
+- name: Deploy game log cleanup script
+  ansible.builtin.template:
+    src: sandstorm-log-cleanup.sh.j2
+    dest: /usr/local/bin/sandstorm-log-cleanup.sh
+    mode: "0755"
+
+- name: Deploy game log cleanup service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - sandstorm-log-cleanup.service
+    - sandstorm-log-cleanup.timer
+
+- name: Enable and start game log cleanup timer
+  ansible.builtin.systemd:
+    name: sandstorm-log-cleanup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
