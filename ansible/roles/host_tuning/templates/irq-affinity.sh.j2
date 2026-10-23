@@ -1,6 +1,6 @@
 #!/bin/sh
 # {{ ansible_managed }}
-# Steer hardware IRQs away from the isolated core {{ host_tuning_isolated_cpu }}.
+# Steer hardware IRQs away from the isolated cores {{ host_tuning_isolated_cpus }}.
 # irqbalance is not installed on this host, so affinity is set directly.
 # Some IRQs (per-CPU timers, chained controllers) reject affinity writes -
 # that is expected and safe to ignore.

@@ -1,16 +1,17 @@
 ---
-# CPU core dedicated to the single-threaded game server process. On the
-# 4-core VPS (cores 0-3) this core is removed from the scheduler, timer
-# ticks, RCU callbacks and IRQs - only an explicitly pinned process runs
-# on it. Everything else (k3s, docker, system) stays on the remaining cores.
-host_tuning_isolated_cpu: 3
+# CPU cores dedicated to the single-threaded game server processes, one per
+# server. On the 4-core VPS (cores 0-3) these cores are removed from the
+# scheduler, timer ticks, RCU callbacks and IRQs - only an explicitly pinned
+# process runs on them. Everything else (k3s, system) stays on the remaining
+# cores.
+host_tuning_isolated_cpus: "2-3"
 
 # Hex affinity mask of the NON-isolated cores, written to
-# /proc/irq/*/smp_affinity. Cores 0-2 -> binary 0111 -> "7".
-# Must be kept in sync with host_tuning_isolated_cpu.
-host_tuning_irq_affinity_mask: "7"
+# /proc/irq/*/smp_affinity. Cores 0-1 -> binary 0011 -> "3".
+# Must be kept in sync with host_tuning_isolated_cpus.
+host_tuning_irq_affinity_mask: "3"
 
 # The NON-isolated cores as a cpulist - where non-latency-critical work
-# evicted from the isolated core goes (e.g. the game's ModioBackground
-# thread). Must be kept in sync with host_tuning_isolated_cpu.
-host_tuning_general_cpus: "0-2"
+# evicted from the isolated cores goes (e.g. the game's ModioBackground
+# thread). Must be kept in sync with host_tuning_isolated_cpus.
+host_tuning_general_cpus: "0-1"
