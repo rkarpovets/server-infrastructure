@@ -8,9 +8,6 @@ sandstorm_instances:
     server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
     max_players: 16
     env_file: .env
-    rcon_password: "{{ sandstorm_rcon_password }}"
-    gslt_token: "{{ sandstorm_gslt_token }}"
-    gamestats_token: "{{ sandstorm_gamestats_token }}"
   - name: sandstorm-hardcore
     dir: sandstorm_server_hardcore
     cpu: 2
@@ -21,6 +18,13 @@ sandstorm_instances:
     max_players: 10
     game_mode: CheckpointHardcore
     env_file: .env.sandstorm-hardcore
+
+sandstorm_instance_secrets:
+  sandstorm:
+    rcon_password: "{{ sandstorm_rcon_password }}"
+    gslt_token: "{{ sandstorm_gslt_token }}"
+    gamestats_token: "{{ sandstorm_gamestats_token }}"
+  sandstorm-hardcore:
     rcon_password: "{{ vault_sandstorm_hardcore_rcon_password }}"
     gslt_token: "{{ vault_sandstorm_hardcore_gslt_token }}"
     gamestats_token: "{{ vault_sandstorm_hardcore_gamestats_token }}"
