@@ -31,6 +31,7 @@
   kubernetes.core.k8s:
     kubeconfig: /etc/rancher/k3s/k3s.yaml
     state: present
+    apply: true
     definition: "{{ lookup('template', 'k8s/nginx.yaml.j2') }}"
 
 - name: Stop and disable the host nginx (replaced by the k3s pod)

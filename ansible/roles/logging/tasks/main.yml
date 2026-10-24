@@ -23,6 +23,7 @@
     kubernetes.core.k8s:
       kubeconfig: /etc/rancher/k3s/k3s.yaml
       state: present
+      apply: true
   block:
     - name: Deploy Loki
       kubernetes.core.k8s:
