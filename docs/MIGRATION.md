@@ -7,16 +7,18 @@ playbook reproduces all software and configuration; this runbook covers the
 ## What the playbook reproduces automatically
 
 `common`, `security` (UFW + fail2ban + SSH hardening), `host_tuning` (CPU-core
-isolation for the game), `k3s` (the container runtime for everything below),
-`monitoring` (Prometheus + Grafana + node_exporter, dashboards, Telegram +
+isolation for the game servers), `k3s` (the container runtime for everything
+below), `monitoring` (Prometheus + Grafana + node_exporter, dashboards, Telegram +
 service-down alerts), `logging` (Loki + Alloy log aggregation), `nginx` reverse
-proxy, native `xray` / 3x-ui, and the `sandstorm` game server (steamcmd +
-configs + mods + the game pod with its RCON-manager sidecar).
+proxy, native `xray` / 3x-ui, and every `sandstorm` game server listed in
+`group_vars/all/sandstorm.yml` (steamcmd + configs + mods + one game pod with
+its RCON-manager sidecar per server).
 
 > **Fresh host needs ONE reboot** after the first playbook run: the CPU
 > isolation (`isolcpus` in GRUB, written by `host_tuning`) only takes effect on
-> boot. Everything runs fine before the reboot - the game core just is not
-> isolated yet. Verify after reboot: `cat /sys/devices/system/cpu/isolated`.
+> boot. Everything runs fine before the reboot - the game cores just are not
+> isolated yet. Verify after reboot: `cat /sys/devices/system/cpu/isolated`
+> lists every game core (currently `2-3`).
 
 The playbook runs from a **control node** (your workstation / WSL, or the CI
 runner) and pushes over SSH. The target server never holds the playbook or the
@@ -29,7 +31,7 @@ vault password - it is a dumb target.
 | `x-ui.db` | VPN inbounds, users, Reality keys, panel login | restore from the R2 backup -> `xray_db_restore_path` |
 | Let's Encrypt certs | nginx TLS won't start without them | restore from the R2 backup -> `nginx_letsencrypt_restore_path` (or re-run certbot) |
 | DNS record | the domain (`vault_nginx_server_name`) must point at the new IP | manual, at your DNS provider |
-| Vault password | needed to decrypt secrets | keep `~/.ansible_vault_pass` backed up off-repo |
+| Vault password | needed to decrypt secrets | keep it off-repo, e.g. in a password manager |
 
 Not carried (acceptable to lose): Prometheus metric history, Grafana volume
 (dashboards/alerts are re-provisioned), game saves/stats.
@@ -55,7 +57,7 @@ Then restore the files onto the control node and re-pack the certs, following
 /tmp/restore/var/lib/restic-backup/x-ui.db   # -> xray_db_restore_path
 ~/letsencrypt.tgz                            # -> nginx_letsencrypt_restore_path
 ```
-Also keep `~/.ansible_vault_pass` backed up off-repo (a password manager).
+Also keep the vault password backed up off-repo (a password manager).
 
 ### 2. On the NEW server - bootstrap access
 
@@ -117,11 +119,12 @@ restores the certs only if they are missing. Re-runs are safe and idempotent.
 ssh -p <ssh_port> ubuntu@<NEW_IP> 'systemctl is-active x-ui k3s'
 ssh -p <ssh_port> ubuntu@<NEW_IP> 'kubectl get pods -A'
 # expect Running: nginx, grafana, prometheus, node-exporter, loki, alloy
-# (monitoring ns) and the sandstorm pod 2/2 (game + manager sidecar)
+# (monitoring ns) and one pod 2/2 per game server (game + manager sidecar)
 ```
 Open your Grafana domain over HTTPS, check the 3x-ui panel for your inbounds,
-confirm a Telegram test alert fires, and check the server appears in the
-in-game browser (or query it: A2S on the query port).
+confirm a Telegram test alert fires, and check every game server appears in the
+in-game browser (or query it: A2S on its query port). The first start of a new
+host installs each game copy with steamcmd, so give it a few minutes.
 
 ## Verifying the playbook matches the current prod (before trusting it)
 
@@ -131,3 +134,5 @@ confidence that a migration will reproduce the server faithfully:
 ```bash
 ansible-playbook site.yml --check --diff
 ```
+`--diff` prints rendered files, secrets included - fine in your own terminal,
+which is exactly why the CI drift check runs without it.

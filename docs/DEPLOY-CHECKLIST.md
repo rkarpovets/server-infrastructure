@@ -13,7 +13,7 @@ the full runbook (backups, restore paths, rationale) is in
       snapshot first: `ssh -p <port> <user>@<OLD_IP> 'sudo systemctl start restic-backup.service'`.
       Then restore `x-ui.db` + certs onto the control node per [BACKUP.md](BACKUP.md)
       (you get `/tmp/restore/var/lib/restic-backup/x-ui.db` and `~/letsencrypt.tgz`).
-- [ ] Confirm `~/.ansible_vault_pass` is stored off-repo.
+- [ ] Confirm the vault password is stored off-repo.
 
 ## B. On the NEW server
 
@@ -70,8 +70,21 @@ var in the workflow for that first run.)
 
 - [ ] `systemctl is-active x-ui k3s` -> both `active`.
 - [ ] `kubectl get pods -A` -> nginx, grafana, prometheus, node-exporter, loki,
-      alloy `Running`; `sandstorm` pod `2/2` (game + manager sidecar).
+      alloy `Running`; one pod `2/2` per game server (`sandstorm`,
+      `sandstorm-hardcore`).
 - [ ] Grafana opens over HTTPS, 3x-ui panel shows your inbounds, a Telegram test
-      alert fires, the game server answers on its query port.
+      alert fires, every game server answers on its query port, and the game
+      bot keeps one pinned board with a section per server.
 - [ ] **Fresh host only:** reboot once to activate the CPU isolation, then
-      `cat /sys/devices/system/cpu/isolated` shows the game core.
+      `cat /sys/devices/system/cpu/isolated` shows the game cores (`2-3`) and
+      each game process is pinned to its own core:
+      `grep Cpus_allowed_list /proc/$(pgrep -f InsurgencyServer | head -1)/status`.
+
+## F. Changing something later (same host)
+
+- [ ] Game configs: merge the game repo PR **first** - deploys copy from its `main`.
+- [ ] Infra change merged, post-merge drift check `failed=0`.
+- [ ] Run **Deploy**. Config and `.env` changes never restart a game; a change
+      to a game pod's manifest does roll that pod.
+- [ ] Restart only the affected server in a no-players window:
+      `kubectl -n sandstorm rollout restart deployment <name>`.
