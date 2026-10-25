@@ -74,7 +74,8 @@ var in the workflow for that first run.)
       `sandstorm-hardcore`).
 - [ ] Grafana opens over HTTPS, 3x-ui panel shows your inbounds, a Telegram test
       alert fires, every game server answers on its query port, and the game
-      bot keeps one pinned board with a section per server.
+      bot keeps one pinned board with a section per server (and the Discord
+      `#server-status` channel one card per server, if its webhooks are set).
 - [ ] **Fresh host only:** reboot once to activate the CPU isolation, then
       `cat /sys/devices/system/cpu/isolated` shows the game cores (`2-3`) and
       each game process is pinned to its own core:
