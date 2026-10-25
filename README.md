@@ -91,6 +91,7 @@ flowchart LR
   manager1 & manager2 --> board
   grafana -->|alerts| tg([Telegram]):::ext
   board -->|one pinned board| tg
+  board -->|status + activity channels| dc([Discord]):::ext
   classDef ext fill:#1f2937,stroke:#475569,color:#e5e7eb;
 ```
 
@@ -160,7 +161,7 @@ Every Sandstorm server is one entry in
 | `cpu` | Isolated core the game is pinned to |
 | `game_port` / `query_port` / `rcon_port` | Host ports (`hostNetwork`); RCON never opens in the firewall |
 | `server_name`, `max_players`, `game_mode`, `mutators` | What players see and play |
-| `tag` | Prefix in Telegram messages and the sort order on the shared board |
+| `tag` | Prefix in Telegram and Discord messages and the sort order on the shared board |
 | `env_file` | The server's `.env` in the steam home |
 
 Secrets sit next to the list in `sandstorm_instance_secrets`, keyed by server
@@ -210,6 +211,7 @@ secrets exist without ever exposing them:
 
 - Grafana admin password
 - Telegram bot tokens (a monitoring bot and a dedicated game bot) + chat id
+- Discord webhook URLs for the game board and the join/leave channel
 - Sandstorm RCON password, GSLT, and game-stats tokens - one set per server
 - mod.io API token
 - Production host: IP, TLS domain, and non-standard SSH / panel / VPN ports
@@ -244,8 +246,10 @@ RCON).
 
 **Game board** - a separate game bot keeps one pinned Telegram message with a
 section per server (players, map, roster) and posts tagged join/leave messages.
-The managers coordinate through a shared state directory, so two pods never
-overwrite each other's edits.
+The same board goes to a read-only Discord `#server-status` channel as one embed
+card per server, and the join/leave messages to an `#activity` channel, both
+through channel webhooks. The managers coordinate through a shared state
+directory, so two pods never overwrite each other's edits.
 
 ## Security
 
