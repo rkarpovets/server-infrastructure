@@ -161,7 +161,8 @@ Every Sandstorm server is one entry in
 | `cpu` | Isolated core the game is pinned to |
 | `game_port` / `query_port` / `rcon_port` | Host ports (`hostNetwork`); RCON never opens in the firewall |
 | `server_name`, `max_players`, `game_mode`, `mutators` | What players see and play |
-| `tag` | Prefix in Telegram and Discord messages and the sort order on the shared board |
+| `tag` | Section title prefix and sort order on the shared board |
+| `label` | Short name on its own line above join/leave messages in Telegram and Discord |
 | `env_file` | The server's `.env` in the steam home |
 
 Secrets sit next to the list in `sandstorm_instance_secrets`, keyed by server
@@ -182,8 +183,11 @@ the one from the repo.
 ### Adding a server
 
 1. Add the entry to `sandstorm.yml` with free ports, a free core and a new tag.
-2. Add its GSLT, GameStats token and RCON password to the vault and reference
-   them in `sandstorm_instance_secrets`. A GSLT can't be shared between servers.
+2. Add its GSLT and RCON password to the vault and reference them in
+   `sandstorm_instance_secrets`. A GSLT can't be shared between servers; the
+   GameStats token belongs to the Steam account and generating a new one
+   invalidated the previous one, so every server uses the same
+   `sandstorm_gamestats_token`.
 3. Put the files that differ under `servers/<name>/` in the game repo.
 4. If it needs a new core: extend `host_tuning_isolated_cpus` and keep
    `host_tuning_irq_affinity_mask` / `host_tuning_general_cpus` in sync. That
@@ -212,7 +216,7 @@ secrets exist without ever exposing them:
 - Grafana admin password
 - Telegram bot tokens (a monitoring bot and a dedicated game bot) + chat id
 - Discord webhook URLs for the game board and the join/leave channel
-- Sandstorm RCON password, GSLT, and game-stats tokens - one set per server
+- Sandstorm RCON password and GSLT per server, one shared GameStats token
 - mod.io API token
 - Production host: IP, TLS domain, and non-standard SSH / panel / VPN ports
 

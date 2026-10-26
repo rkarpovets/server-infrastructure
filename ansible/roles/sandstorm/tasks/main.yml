@@ -138,6 +138,7 @@
       - { src: "Insurgency/Config/Server/Admins.txt", dest: "Insurgency/Config/Server/Admins.txt", mode: "0664" }
       - { src: "Insurgency/Config/Server/MapCycle.txt", dest: "Insurgency/Config/Server/MapCycle.txt", mode: "0664" }
       - { src: "Insurgency/Config/Server/Motd.txt", dest: "Insurgency/Config/Server/Motd.txt", mode: "0664" }
+      - { src: "Insurgency/Config/Server/Reminders.txt", dest: "Insurgency/Config/Server/Reminders.txt", mode: "0664" }
       - { src: "Insurgency/Saved/Config/LinuxServer/Game.ini", dest: "Insurgency/Saved/Config/LinuxServer/Game.ini", mode: "0644", owner: root }
       - { src: "Insurgency/Saved/Config/LinuxServer/Engine.ini", dest: "Insurgency/Saved/Config/LinuxServer/Engine.ini", mode: "0664" }
       - { src: "server.sh", dest: "server.sh", mode: "0755" }
