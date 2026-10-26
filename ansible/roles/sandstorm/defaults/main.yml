@@ -32,6 +32,8 @@ sandstorm_telegram_token: "{{ vault_telegram_sandstorm_bot_token | default('') }
 sandstorm_telegram_chat_id: "{{ vault_telegram_chat_id | default('') }}"
 sandstorm_discord_board_webhook: "{{ vault_discord_sandstorm_board_webhook | default('') }}"
 sandstorm_discord_events_webhook: "{{ vault_discord_sandstorm_events_webhook | default('') }}"
+sandstorm_chat_reminder: "Join our Discord: discord.gg/28g67vfWPK"
+sandstorm_chat_reminder_minutes: 18
 # Steam Web API key for resolving SteamID -> player name: the manager reads
 # player IDs from RCON listplayers and looks names up via the API. From vault;
 # empty by default so names fall back to "SteamID:<id>" where no key is set.
