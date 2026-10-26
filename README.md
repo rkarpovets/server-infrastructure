@@ -34,7 +34,7 @@ a repeatable operation.
   hot mod.io SDK threads are evicted back to the general cores by a host-side
   timer.
 - **Several servers from one list** - every game server is one entry in
-  `sandstorm_instances` (ports, core, mode, mutators, tag, secrets). Install
+  `sandstorm_instances` (ports, core, mode, mutators, tag, label). Install
   dirs, configs, firewall rules, pods, log shipping, metrics and the dashboard
   all follow from that list.
 - **Game + RCON manager as one pod** - the Python manager runs as a sidecar
@@ -111,7 +111,7 @@ is a decision, not an accident.
 | `logging`     | Loki + Grafana Alloy; tails every server's game log, the RCON managers and the systemd journal, labelled per server, queryable in the same Grafana |
 | `nginx`       | nginx Deployment on hostPort 80/TLS: fronts Grafana, serves ACME webroot renewals, keeps file logs for the fail2ban jails |
 | `xray`        | Native 3x-ui install (pinned binary + systemd), one-time DB restore |
-| `sandstorm`   | For every server in `sandstorm_instances`: steamcmd install, mod.io mods, game configs (with per-server overrides from the game repo), `.env`, firewall rules and a two-container game pod (game + RCON-manager sidecar); plus the log-backup cleanup timer and the shared Telegram board directory |
+| `sandstorm`   | For every server in `sandstorm_instances`: steamcmd install, mod.io mods, game configs and chat reminders (with per-server overrides from the game repo), `.env`, firewall rules and a two-container game pod (game + RCON-manager sidecar); plus the log-backup cleanup timer and the shared Telegram/Discord board directory |
 | `backup`      | Daily restic backup of the non-reproducible state (3x-ui VPN DB, TLS certs) to Cloudflare R2, client-side encrypted; systemd timer + a heartbeat metric that drives a stale-backup alert |
 
 Applied in dependency order by `site.yml`: `common -> security -> host_tuning ->
@@ -206,6 +206,18 @@ the one from the repo.
 4. In a no-players window, restart only the server that changed:
    `kubectl -n sandstorm rollout restart deployment <name>`.
 
+What each change needs after Deploy:
+
+| Change | Takes effect |
+|--------|--------------|
+| `Reminders.txt` | On the next reminder - the manager re-reads it |
+| `servermanager.py`, manager settings in `.env` (Telegram, Discord, label, reminder interval) | Manager restart only; the game keeps running and players stay connected: `kubectl -n sandstorm exec deploy/<name> -c manager -- sh -c 'kill -TERM 1'` |
+| `Motd.txt`, `MapCycle.txt`, `Admins.txt`, `Game.ini`, `Engine.ini`, mods, GSLT / GameStats token, server name, slots, mutators | Game restart: `rollout restart` in a no-players window (it restarts the manager too) |
+
+After a game restart, the game log should say `GameStats submission enabled!
+XP gains enabled.`; `Invalid or unknown GameStatsToken` means the server gives
+no XP.
+
 ## Secrets & Vault
 
 All secrets live in `inventory/group_vars/all/vault.yml`, encrypted with
@@ -249,11 +261,17 @@ its game plays on - k8s only restarts the pod when the *game* stops answering
 RCON).
 
 **Game board** - a separate game bot keeps one pinned Telegram message with a
-section per server (players, map, roster) and posts tagged join/leave messages.
-The same board goes to a read-only Discord `#server-status` channel as one embed
-card per server, and the join/leave messages to an `#activity` channel, both
-through channel webhooks. The managers coordinate through a shared state
-directory, so two pods never overwrite each other's edits.
+section per server (players, map, roster) and posts join/leave messages headed
+by the server's `label`. The same board goes to a read-only Discord
+`#server-status` channel as one embed card per server, and the join/leave
+messages to an `#activity` channel, both through channel webhooks. The managers
+coordinate through a shared state directory, so two pods never overwrite each
+other's edits.
+
+**In game** - each server's MOTD and a rotating chat reminder (every
+`sandstorm_chat_reminder_minutes`, 18 by default) point players to the Discord
+through a short `dsc.gg` link, since text in the game can't be copied. Both come
+from the game repo, `Reminders.txt` per server like any other config file.
 
 ## Security
 

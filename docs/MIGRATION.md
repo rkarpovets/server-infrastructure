@@ -124,7 +124,12 @@ ssh -p <ssh_port> ubuntu@<NEW_IP> 'kubectl get pods -A'
 Open your Grafana domain over HTTPS, check the 3x-ui panel for your inbounds,
 confirm a Telegram test alert fires, and check every game server appears in the
 in-game browser (or query it: A2S on its query port). The first start of a new
-host installs each game copy with steamcmd, so give it a few minutes.
+host installs each game copy with steamcmd, so give it a few minutes. Each game
+log should then report `XP gains enabled.` - the GSLTs and the GameStats token
+belong to Steam accounts, not to the host, so the vaulted ones keep working on
+new hardware. The Telegram and Discord boards carry over too: their message ids
+live in the board state directory, and if it is missing the managers post fresh
+boards.
 
 ## Verifying the playbook matches the current prod (before trusting it)
 
