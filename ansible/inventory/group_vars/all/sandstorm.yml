@@ -8,6 +8,7 @@ sandstorm_instances:
     server_name: "[DE] CrazyStorm / ISMC / Balanced AI"
     max_players: 16
     tag: "[1]"
+    label: Balanced AI
     mutators: [ISMCarmory_Legacy, ISMCJumpShoot]
     env_file: .env
   - name: sandstorm-hardcore
@@ -20,6 +21,7 @@ sandstorm_instances:
     max_players: 10
     game_mode: CheckpointHardcore
     tag: "[2]"
+    label: Hardcore
     mutators: [ISMCarmory_Legacy, ISMCJumpShoot, Hardcore]
     env_file: .env.sandstorm-hardcore
 
@@ -31,4 +33,4 @@ sandstorm_instance_secrets:
   sandstorm-hardcore:
     rcon_password: "{{ vault_sandstorm_hardcore_rcon_password }}"
     gslt_token: "{{ vault_sandstorm_hardcore_gslt_token }}"
-    gamestats_token: "{{ vault_sandstorm_hardcore_gamestats_token }}"
+    gamestats_token: "{{ sandstorm_gamestats_token }}"
