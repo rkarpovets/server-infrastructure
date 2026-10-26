@@ -76,6 +76,8 @@ var in the workflow for that first run.)
       alert fires, every game server answers on its query port, and the game
       bot keeps one pinned board with a section per server (and the Discord
       `#server-status` channel one card per server, if its webhooks are set).
+- [ ] Every game log reports `GameStats submission enabled! XP gains enabled.`
+      (`Invalid or unknown GameStatsToken` = no XP; all servers share one token).
 - [ ] **Fresh host only:** reboot once to activate the CPU isolation, then
       `cat /sys/devices/system/cpu/isolated` shows the game cores (`2-3`) and
       each game process is pinned to its own core:
@@ -87,5 +89,8 @@ var in the workflow for that first run.)
 - [ ] Infra change merged, post-merge drift check `failed=0`.
 - [ ] Run **Deploy**. Config and `.env` changes never restart a game; a change
       to a game pod's manifest does roll that pod.
-- [ ] Restart only the affected server in a no-players window:
+- [ ] Restart only what the change needs (see the table in the README,
+      [Rolling out changes](../README.md#rolling-out-changes)): nothing for
+      `Reminders.txt`, the manager container for manager code or `.env`, the
+      whole server for MOTD / game configs / tokens - in a no-players window:
       `kubectl -n sandstorm rollout restart deployment <name>`.
