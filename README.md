@@ -163,6 +163,7 @@ Every Sandstorm server is one entry in
 | `server_name`, `max_players`, `game_mode`, `mutators` | What players see and play |
 | `tag` | Section title prefix and sort order on the shared board |
 | `label` | Short name on its own line above join/leave messages in Telegram and Discord |
+| `battlemetrics_server_id` | Public BattleMetrics server ID; the bot fetches and links its rank on both status boards |
 | `env_file` | The server's `.env` in the steam home |
 
 Secrets sit next to the list in `sandstorm_instance_secrets`, keyed by server
@@ -211,7 +212,7 @@ What each change needs after Deploy:
 | Change | Takes effect |
 |--------|--------------|
 | `Reminders.txt` | On the next reminder - the manager re-reads it |
-| `servermanager.py`, manager settings in `.env` (Telegram, Discord, label, reminder interval) | Manager restart only; the game keeps running and players stay connected: `kubectl -n sandstorm exec deploy/<name> -c manager -- sh -c 'kill -TERM 1'` |
+| `servermanager.py`, manager settings in `.env` (Telegram, Discord, label, reminder interval, BattleMetrics server ID) | Manager restart only; the game keeps running and players stay connected: `kubectl -n sandstorm exec deploy/<name> -c manager -- sh -c 'kill -TERM 1'` |
 | `Motd.txt`, `MapCycle.txt`, `Admins.txt`, `Game.ini`, `Engine.ini`, mods, GSLT / GameStats token, server name, slots, mutators | Game restart: `rollout restart` in a no-players window (it restarts the manager too) |
 
 After a game restart, the game log should say `GameStats submission enabled!
@@ -261,8 +262,8 @@ its game plays on - k8s only restarts the pod when the *game* stops answering
 RCON).
 
 **Game board** - a separate game bot keeps one pinned Telegram message with a
-section per server (players, map, roster) and posts join/leave messages headed
-by the server's `label`. The same board goes to a read-only Discord
+section per server (players, map, BattleMetrics rank, roster) and posts
+join/leave messages headed by the server's `label`. The same board goes to a read-only Discord
 `#server-status` channel as one embed card per server, and the join/leave
 messages to an `#activity` channel, both through channel webhooks. The managers
 coordinate through a shared state directory, so two pods never overwrite each
