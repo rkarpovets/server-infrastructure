@@ -9,6 +9,7 @@ sandstorm_instances:
     max_players: 16
     tag: "[1]"
     label: Balanced AI
+    battlemetrics_server_id: "39086277"
     mutators: [ISMCarmory_Legacy, ISMCJumpShoot]
     env_file: .env
   - name: sandstorm-hardcore
@@ -22,6 +23,7 @@ sandstorm_instances:
     game_mode: CheckpointHardcore
     tag: "[2]"
     label: Hardcore
+    battlemetrics_server_id: "41734021"
     mutators: [ISMCarmory_Legacy, ISMCJumpShoot, Hardcore]
     env_file: .env.sandstorm-hardcore
 
