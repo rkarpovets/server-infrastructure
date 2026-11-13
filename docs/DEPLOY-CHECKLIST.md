@@ -78,8 +78,8 @@ var in the workflow for that first run.)
       `#server-status` channel one card per server, if its webhooks are set).
 - [ ] Every game log reports `GameStats submission enabled! XP gains enabled.`
       (`Invalid or unknown GameStatsToken` = no XP; all servers share one token).
-- [ ] The Telegram and Discord status boards show a linked BattleMetrics rank for
-      each server.
+- [ ] Each server name on the Telegram and Discord status boards links to its
+      BattleMetrics page.
 - [ ] **Fresh host only:** reboot once to activate the CPU isolation, then
       `cat /sys/devices/system/cpu/isolated` shows the game cores (`2-3`) and
       each game process is pinned to its own core:
